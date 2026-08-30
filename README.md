@@ -6,12 +6,12 @@ AI Assessment Extraction & Answer Mapping application for evaluating handwritten
 
 - **Framework**: Next.js 15 (App Router)
 - **UI & Styling**: React 19, TypeScript, Tailwind CSS
-- **AI / Vision**: Google Gemini API (`gemini-1.5-flash` / `gemini-2.0-flash` via `@google/genai`)
+- **AI / Vision**: Google Gemini Vision API (`gemini-1.5-flash` / `gemini-2.0-flash` via `@google/genai`)
 - **Document Processing**: Pure-JS PDF Structure Parser, `sharp` (image processing & normalization)
 
 ---
 
-## Current Implementation Status (Phase 4: AI Question Extraction)
+## Current Implementation Status (Phase 5: Handwritten Answer & Region Extraction)
 
 ### Real Functionality Implemented
 - **Browser File Selection**: Drag-and-drop & file picker support for Question Paper and Student Answer Sheet.
@@ -24,81 +24,84 @@ AI Assessment Extraction & Answer Mapping application for evaluating handwritten
   - Preserves exact printed numbering strings (e.g., `1`, `2`, `10`, `11(a)`, `11(b)`, `Q4(i)`).
   - Preserves original printed order (`order` integer sequence).
   - Separates sub-questions into distinct entries with `parentNumber` and `partLabel`.
-  - Merges multi-page question continuations into single items with `sourcePages: [1, 2]`.
-  - Captures maximum marks where indicated (e.g. `[2 Marks]`).
-  - Generates approximate bounding regions for each printed question.
-- **Live Review UI Flow**: The `/processing` route executes real document normalization followed by live AI question extraction, populating `/assessment` with real extracted questions.
+- **AI Handwritten Answer Extraction API**: `POST /api/assessment/extract-answers`
+  - Detects distinct handwritten answer blocks across student answer sheet pages.
+  - Detects student-written question references (`1`, `4`, `11(a)`, `Q5`, `Ans 2`) or records `null` if omitted.
+  - Transcribes handwritten answers and visual/diagram content.
+  - Extracts exact bounding box regions `{ x, y, width, height }` per answer block.
+  - Handles multi-page answer continuations (e.g. Q7 spanning pages 1 and 2).
+  - Supports multiple answers on the same page.
+- **Interactive Review UI Flow**: The `/processing` route executes the live pipeline (Upload → Normalize → Question Extraction → Answer Extraction) and auto-navigates to `/assessment` with interactive candidate inspection tools.
 
 ### Not Implemented Yet (Future Phases)
-- Student Handwritten Answer Extraction & OCR (Phase 5)
 - Answer-to-Question Semantic Mapping (Phase 6)
 - Answer Region Bounding Box Highlighting on Student Sheets (Phase 7)
 - Automated Evaluation & Grading (Phase 8)
 
 ---
 
-## AI Question Extraction Architecture
+## AI Architecture
 
 ### Model & Provider
 - **Provider**: Google Gemini API (Free Tier compatible)
 - **Default Model**: `gemini-1.5-flash` (or `gemini-2.0-flash`)
-- **Why Selected**:
-  - Native multimodal vision handling multi-page documents seamlessly.
-  - Fast response times (<2s on free tier).
-  - High accuracy on complex document layouts, sub-parts, tables, and mixed alphanumeric numbering.
-  - Native structured JSON output enforcement.
 - **Configuration**:
   - `GEMINI_API_KEY` or `AI_API_KEY` in `.env.local`
   - `GEMINI_MODEL` (optional, defaults to `gemini-1.5-flash`)
 
-### Structured Output Schema
+### Handwritten Answer Extraction Schema
 ```json
 {
   "assessmentId": "uuid",
   "status": "success",
-  "totalQuestions": 14,
-  "extractionTimeMs": 1450,
+  "totalAnswers": 6,
+  "extractionTimeMs": 1820,
   "modelUsed": "gemini-1.5-flash",
-  "questions": [
+  "answers": [
     {
-      "id": "q-1-1",
-      "number": "1",
-      "text": "Which blood vessel carries blood away from the heart?",
-      "order": 1,
-      "parentNumber": null,
-      "partLabel": null,
-      "maxMarks": 2,
-      "sourcePages": [1],
-      "region": {
-        "page": 1,
-        "boundingBox": { "x": 100, "y": 150, "width": 1040, "height": 120 }
-      },
-      "confidence": 0.98
+      "id": "ans-4-1",
+      "detectedQuestionNumber": "4",
+      "text": "Xylem vessels have lignified walls which provide mechanical strength...",
+      "regions": [
+        {
+          "id": "region-1-1-1",
+          "page": 1,
+          "boundingBox": { "x": 80, "y": 120, "width": 1080, "height": 220 }
+        }
+      ],
+      "confidence": 0.95,
+      "status": "candidate",
+      "hasVisualContent": false
     },
     {
-      "id": "q-11-a-11",
-      "number": "11(a)",
-      "text": "Compare the leaf morphology of Plant A and Plant B.",
-      "order": 11,
-      "parentNumber": "11",
-      "partLabel": "a",
-      "maxMarks": 2,
-      "sourcePages": [2],
-      "region": {
-        "page": 2,
-        "boundingBox": { "x": 100, "y": 300, "width": 1040, "height": 160 }
-      },
-      "confidence": 0.96
+      "id": "ans-7-4",
+      "detectedQuestionNumber": "7",
+      "text": "Part 1 of cellular respiration...\n[Continuation]: Part 2 electron transport...",
+      "regions": [
+        {
+          "id": "region-4-1-1",
+          "page": 1,
+          "boundingBox": { "x": 80, "y": 1200, "width": 1080, "height": 450 }
+        },
+        {
+          "id": "region-4-2-2",
+          "page": 2,
+          "boundingBox": { "x": 80, "y": 100, "width": 1080, "height": 550 }
+        }
+      ],
+      "confidence": 0.91,
+      "status": "candidate",
+      "hasVisualContent": true
     }
   ]
 }
 ```
 
-### Server-Side Validation & Resilience
-- **Schema Validation**: Guarantees all items have valid question numbers, non-empty text, positive orders, and valid page references.
-- **Sub-part Normalization**: Automatically extracts and links parent/part relationships (e.g. `11(a)` → parent `"11"`, part `"a"`).
-- **Continuation Deduplication**: Resolves question continuations spanning page boundaries.
-- **Controlled Error States**: If no questions are found or API credentials are unconfigured, returns a clean `needs_review` response without crashing.
+### Coordinate System & Bounding Boxes
+- **Origin**: Top-left `(0, 0)`.
+- **Axes**: `x` increases rightward, `y` increases downward.
+- **Units**: Pixels relative to standard page dimensions (width ~1240, height ~1754 at 150 DPI).
+- **Validation**: Strict boundary checks ensuring `x >= 0`, `y >= 0`, `x + width <= page.width`, `y + height <= page.height`.
 
 ---
 

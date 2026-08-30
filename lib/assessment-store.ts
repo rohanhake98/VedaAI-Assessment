@@ -6,11 +6,12 @@
  */
 
 import { ProcessingResult } from "@/lib/document-processing/types";
-import { QuestionExtractionResult } from "@/lib/ai/types";
+import { QuestionExtractionResult, AnswerExtractionResult } from "@/lib/ai/types";
 
 export interface StoredAssessment {
   processingResult: ProcessingResult;
   extractedQuestionsResult?: QuestionExtractionResult;
+  extractedAnswersResult?: AnswerExtractionResult;
   updatedAt: number;
 }
 
@@ -46,6 +47,24 @@ class AssessmentStore {
     assessmentId: string
   ): QuestionExtractionResult | undefined {
     return this.store.get(assessmentId)?.extractedQuestionsResult;
+  }
+
+  public setAnswersResult(
+    assessmentId: string,
+    extractedAnswersResult: AnswerExtractionResult
+  ): boolean {
+    const item = this.store.get(assessmentId);
+    if (!item) return false;
+
+    item.extractedAnswersResult = extractedAnswersResult;
+    item.updatedAt = Date.now();
+    return true;
+  }
+
+  public getAnswersResult(
+    assessmentId: string
+  ): AnswerExtractionResult | undefined {
+    return this.store.get(assessmentId)?.extractedAnswersResult;
   }
 
   private prune(): void {

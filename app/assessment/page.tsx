@@ -10,7 +10,13 @@ import { Question, Answer } from "@/lib/types";
 import { useAssessment } from "@/lib/assessment-context";
 
 export default function AssessmentPage() {
-  const { processingResult, extractedQuestions, extractionResult } = useAssessment();
+  const {
+    processingResult,
+    extractedQuestions,
+    extractionResult,
+    extractedAnswers,
+    answerExtractionResult,
+  } = useAssessment();
 
   // Convert real extracted questions into UI Question format, or fallback to mock data
   const displayedQuestions: Question[] = useMemo(() => {
@@ -33,7 +39,9 @@ export default function AssessmentPage() {
     return displayedQuestions[0]?.id ?? "q1";
   });
 
-  const isRealExtraction = extractedQuestions && extractedQuestions.length > 0;
+  const isRealQuestions = extractedQuestions && extractedQuestions.length > 0;
+  const isRealAnswers = extractedAnswers && extractedAnswers.length > 0;
+
   const selectedQuestion =
     displayedQuestions.find((q) => q.id === selectedId) ?? displayedQuestions[0] ?? null;
 
@@ -52,19 +60,29 @@ export default function AssessmentPage() {
 
         {/* Real metadata & AI extraction banner */}
         <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-2.5 bg-gradient-to-r from-orange-50/80 via-white to-green-50/80 border-b border-gray-200 text-xs">
-          <div className="flex items-center gap-3">
-            {isRealExtraction ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800 font-semibold border border-orange-200">
-                <span>✦</span> Real AI Questions Extracted ({displayedQuestions.length})
+          <div className="flex flex-wrap items-center gap-3">
+            {isRealQuestions ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800 font-semibold border border-orange-200">
+                <span>✦</span> AI Questions ({displayedQuestions.length})
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium border border-gray-200">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium border border-gray-200">
                 Demo Questions (14)
               </span>
             )}
 
+            {isRealAnswers ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 font-semibold border border-green-200">
+                <span>✦</span> AI Answers ({extractedAnswers.length} regions detected)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium border border-gray-200">
+                Demo Answer Regions
+              </span>
+            )}
+
             {processingResult && (
-              <span className="text-gray-600 hidden md:inline">
+              <span className="text-gray-500 hidden xl:inline">
                 QP: <strong>{processingResult.questionPaper.originalFileName}</strong> ({processingResult.questionPaper.pageCount}p) | AS: <strong>{processingResult.answerSheet.originalFileName}</strong> ({processingResult.answerSheet.pageCount}p)
               </span>
             )}
@@ -72,7 +90,7 @@ export default function AssessmentPage() {
 
           <div className="flex items-center gap-2 text-gray-500">
             <span className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-2 py-0.5 rounded text-[11px]">
-              Note: Answer mapping &amp; highlights are mock (Phase 5 &amp; 6)
+              Phase 6 will perform final Semantic Answer Mapping
             </span>
           </div>
         </div>
@@ -93,6 +111,7 @@ export default function AssessmentPage() {
             <AnswerViewer
               answer={selectedAnswer}
               questionNumber={selectedQuestion?.number}
+              realAnswers={extractedAnswers}
             />
           </div>
         </div>

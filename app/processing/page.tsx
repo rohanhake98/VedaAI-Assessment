@@ -16,13 +16,13 @@ interface Stage {
 }
 
 const INITIAL_STAGES: Stage[] = [
-  { id: "upload",    label: "Uploading files",             status: "pending" },
-  { id: "prepare",   label: "Preparing documents",          status: "pending" },
-  { id: "pages",     label: "Normalising pages",            status: "pending" },
-  { id: "q_extract", label: "Extracting questions (AI)",    status: "pending" },
+  { id: "upload",    label: "Uploading files",                     status: "pending" },
+  { id: "prepare",   label: "Preparing documents",                  status: "pending" },
+  { id: "pages",     label: "Normalising pages",                    status: "pending" },
+  { id: "q_extract", label: "Extracting questions (AI Vision)",     status: "pending" },
+  { id: "a_extract", label: "Extracting handwritten answers (AI)",  status: "pending" },
   // ── Future phases (pending) ────────────────────────────────────────────────
-  { id: "a_extract", label: "Extracting answers (Phase 5)", status: "pending" },
-  { id: "mapping",   label: "Mapping answers (Phase 6)",    status: "pending" },
+  { id: "mapping",   label: "Mapping answers (Phase 6)",            status: "pending" },
 ];
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -85,6 +85,8 @@ export default function ProcessingPage() {
     setProcessingResult,
     setExtractedQuestions,
     setExtractionResult,
+    setExtractedAnswers,
+    setAnswerExtractionResult,
     setUploadError,
   } = useAssessment();
 
@@ -137,25 +139,49 @@ export default function ProcessingPage() {
         // ── Stage 3: Real AI Question Extraction (Phase 4) ────────────────────
         setStageStatus("q_extract", "active");
 
-        const extractRes = await fetch("/api/assessment/extract-questions", {
+        const qExtractRes = await fetch("/api/assessment/extract-questions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ assessmentId: uploadData.assessmentId }),
         });
 
-        const extractData = await extractRes.json().catch(() => ({}));
+        const qExtractData = await qExtractRes.json().catch(() => ({}));
 
-        if (!extractRes.ok && extractData.status === "error") {
-          throw new Error(extractData?.error ?? "Question extraction encountered an error.");
+        if (!qExtractRes.ok && qExtractData.status === "error") {
+          throw new Error(qExtractData?.error ?? "Question extraction encountered an error.");
         }
 
         setStageStatus("q_extract", "done");
 
-        if (extractData.questions && extractData.questions.length > 0) {
-          setExtractedQuestions(extractData.questions);
-          setExtractionResult(extractData);
-        } else if (extractData.status === "needs_review") {
-          setExtractionResult(extractData);
+        if (qExtractData.questions && qExtractData.questions.length > 0) {
+          setExtractedQuestions(qExtractData.questions);
+          setExtractionResult(qExtractData);
+        } else if (qExtractData.status === "needs_review") {
+          setExtractionResult(qExtractData);
+        }
+
+        // ── Stage 4: Real AI Handwritten Answer Extraction (Phase 5) ─────────
+        setStageStatus("a_extract", "active");
+
+        const aExtractRes = await fetch("/api/assessment/extract-answers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assessmentId: uploadData.assessmentId }),
+        });
+
+        const aExtractData = await aExtractRes.json().catch(() => ({}));
+
+        if (!aExtractRes.ok && aExtractData.status === "error") {
+          throw new Error(aExtractData?.error ?? "Answer extraction encountered an error.");
+        }
+
+        setStageStatus("a_extract", "done");
+
+        if (aExtractData.answers && aExtractData.answers.length > 0) {
+          setExtractedAnswers(aExtractData.answers);
+          setAnswerExtractionResult(aExtractData);
+        } else if (aExtractData.status === "needs_review") {
+          setAnswerExtractionResult(aExtractData);
         }
 
         // Brief beat before navigating to review screen
@@ -195,7 +221,7 @@ export default function ProcessingPage() {
             {isError ? "Processing failed" : "Extracting…"}
           </h2>
           <p className="text-gray-500 text-base mb-8">
-            {isError ? "" : "Extracting questions with AI vision model"}
+            {isError ? "" : "Extracting questions and student answers with AI vision"}
           </p>
 
           {/* Error display */}
@@ -221,7 +247,7 @@ export default function ProcessingPage() {
           </div>
 
           <p className="text-xs text-gray-400 mt-6 max-w-xs text-center">
-            Answer extraction and question-answer mapping will run in Phase 5 &amp; 6
+            Answer mapping and grading will run in Phase 6 &amp; 7
           </p>
         </div>
       </div>
