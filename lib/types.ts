@@ -1,6 +1,5 @@
 /**
  * Conceptual types for VedaAI Assessment application.
- * Note: These are initial interfaces and will be refined during implementation.
  */
 
 export interface BoundingBox {
@@ -16,26 +15,39 @@ export interface AnswerRegion {
   boundingBox: BoundingBox;
 }
 
-export type QuestionStatus = "unmapped" | "mapped" | "partial";
+export type QuestionStatus = "answered" | "unanswered" | "ambiguous";
+export type AnswerStatus = "mapped" | "unmatched" | "ambiguous";
+export type ProcessingStatus =
+  | "idle"
+  | "uploading"
+  | "extracting_questions"
+  | "extracting_answers"
+  | "mapping"
+  | "highlighting"
+  | "completed"
+  | "error";
 
 export interface Question {
   id: string;
   number: string | number;
   text: string;
-  maxMarks?: number;
+  order?: number;
+  parentNumber?: string;
+  partLabel?: string;
   status?: QuestionStatus;
+  answerId?: string;
+  maxMarks?: number;
 }
 
 export interface Answer {
   id: string;
   detectedQuestionNumber?: string | number;
-  text: string;
+  text?: string;
   regions: AnswerRegion[];
   mappedQuestionId?: string;
   confidence?: number;
+  status?: AnswerStatus;
 }
-
-export type ProcessingStatus = "idle" | "uploading" | "processing" | "completed" | "failed";
 
 export interface Assessment {
   id?: string;
@@ -44,4 +56,11 @@ export interface Assessment {
   questions: Question[];
   answers: Answer[];
   processingStatus: ProcessingStatus;
+}
+
+export interface UploadedFile {
+  file: File;
+  name: string;
+  size: number;
+  pages?: number;
 }

@@ -1,0 +1,165 @@
+import { Question, Answer, Assessment } from "@/lib/types";
+
+export const mockQuestions: Question[] = [
+  {
+    id: "q1",
+    number: "1",
+    text: "Which blood vessel carries blood away from the heart?",
+    status: "answered",
+    maxMarks: 2,
+  },
+  {
+    id: "q2",
+    number: "2",
+    text: "Which of the following organelles is primarily involved in photosynthesis?",
+    status: "answered",
+    maxMarks: 2,
+  },
+  {
+    id: "q3",
+    number: "3",
+    text: "Explain the role of chloroplasts in photosynthesis, naming the main pigments involved and briefly outlining the two major stages of the process.",
+    status: "answered",
+    maxMarks: 2,
+  },
+  {
+    id: "q4",
+    number: "4",
+    text: "Describe the flow of blood through the human heart starting from the right atrium and ending at the aorta; include the names of valves crossed.",
+    status: "answered",
+    maxMarks: 2,
+  },
+  {
+    id: "q5",
+    number: "5",
+    text: "Draw a labelled diagram of an alveolus showing capillaries and air space (label alveolar sac, capillary, and direction of gas exchange).",
+    status: "answered",
+    maxMarks: 2,
+  },
+  {
+    id: "q6",
+    number: "6",
+    text: "Draw a neat labelled diagram of the human digestive system (stomach, small intestine, large intestine, liver, pancreas) and label the site where most absorption occurs.",
+    status: "answered",
+    maxMarks: 5,
+  },
+  {
+    id: "q7",
+    number: "7",
+    text: "Draw and label a nephron (Bowman's capsule, glomerulus, proximal tubule, loop of Henle, distal tubule, collecting duct).",
+    status: "answered",
+    maxMarks: 5,
+  },
+  {
+    id: "q8",
+    number: "8",
+    text: "Explain the structural differences between palisade mesophyll and spongy mesophyll and state how each structure aids its function in the leaf.",
+    status: "answered",
+    maxMarks: 5,
+  },
+  {
+    id: "q9",
+    number: "9",
+    text: "Describe the process of transpiration in plants in two to three sentences and name two environmental factors that increase its rate.",
+    status: "answered",
+    maxMarks: 5,
+  },
+  {
+    id: "q10",
+    number: "10",
+    text: "Explain how the structure of xylem vessels facilitates water transport in plants (mention one structural feature and its role).",
+    status: "answered",
+    maxMarks: 5,
+  },
+  {
+    id: "q11a",
+    number: "11",
+    text: "A diagram shows two potted plants — Plant A in bright light with broad green leaves, Plant B kept in dim light with pale, elongated leaves.",
+    status: "answered",
+    maxMarks: 2,
+    partLabel: "a",
+  },
+  {
+    id: "q11b",
+    number: "11",
+    text: "Suggest one practical measure to help Plant B recover.",
+    status: "answered",
+    maxMarks: 3,
+    partLabel: "b",
+  },
+  {
+    id: "q12",
+    number: "12",
+    text: "A resting person has tidal volume (air per breath) of 0.5 L and breathes 12 times per minute.",
+    status: "unanswered",
+    maxMarks: 5,
+  },
+  {
+    id: "q13",
+    number: "13",
+    text: "If dead space is 0.15 L per breath, calculate the alveolar ventilation per minute. Show working.",
+    status: "answered",
+    maxMarks: 5,
+  },
+];
+
+export const mockAnswers: Answer[] = [
+  {
+    id: "a1",
+    detectedQuestionNumber: "1",
+    text: "The artery carries blood away from the heart.",
+    regions: [{ page: 1, boundingBox: { x: 100, y: 120, width: 700, height: 120 } }],
+    mappedQuestionId: "q1",
+  },
+  {
+    id: "a2",
+    detectedQuestionNumber: "2",
+    text: "Chloroplast is primarily involved in photosynthesis.",
+    regions: [{ page: 1, boundingBox: { x: 100, y: 490, width: 840, height: 220 } }],
+    mappedQuestionId: "q2",
+  },
+  {
+    id: "a3",
+    detectedQuestionNumber: "3",
+    text: "Chloroplasts contain chlorophyll pigment...",
+    regions: [{ page: 2, boundingBox: { x: 100, y: 120, width: 700, height: 150 } }],
+    mappedQuestionId: "q3",
+  },
+  {
+    id: "a4",
+    detectedQuestionNumber: "4",
+    text: "Blood flows from right atrium...",
+    regions: [{ page: 2, boundingBox: { x: 100, y: 300, width: 700, height: 150 } }],
+    mappedQuestionId: "q4",
+  },
+  {
+    id: "a6",
+    detectedQuestionNumber: "6",
+    text: "Diagram of digestive system...",
+    regions: [{ page: 3, boundingBox: { x: 100, y: 120, width: 700, height: 200 } }],
+    mappedQuestionId: "q6",
+  },
+];
+
+export const mockScores: Record<string, { obtained: number; max: number; feedback?: string }> = {
+  q1: { obtained: 2, max: 2 },
+  q2: { obtained: 2, max: 2, feedback: "Excellent work! You correctly identified the chloroplast as the organelle responsible for photosynthesis. Keep it up!" },
+  q3: { obtained: 2, max: 2 },
+  q4: { obtained: 0, max: 2 },
+  q5: { obtained: 2, max: 2 },
+  q6: { obtained: 4, max: 5 },
+  q7: { obtained: 5, max: 5 },
+  q8: { obtained: 3, max: 5 },
+  q9: { obtained: 5, max: 5 },
+  q10: { obtained: 4, max: 5 },
+  q11a: { obtained: 2, max: 2 },
+  q11b: { obtained: 1, max: 3 },
+  q12: { obtained: 0, max: 5 },
+  q13: { obtained: 4, max: 5 },
+};
+
+export const mockAssessment: Assessment = {
+  questions: mockQuestions,
+  answers: mockAnswers,
+  processingStatus: "completed",
+};
