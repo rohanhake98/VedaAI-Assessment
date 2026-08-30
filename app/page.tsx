@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import UploadCard from "@/components/upload/UploadCard";
-import { UploadedFile } from "@/lib/types";
+import { useAssessment, UploadedFileMeta } from "@/lib/assessment-context";
+import { validateFile } from "@/lib/file-validation";
 
 const ArrowRightIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -17,29 +18,20 @@ const ArrowRightIcon = () => (
 function TeacherIllustration() {
   return (
     <div className="relative w-32 h-32 flex items-center justify-center mb-6">
-      {/* Outer glow ring */}
       <div className="absolute inset-0 rounded-full bg-orange-100/60" />
-      {/* Inner circle (avatar) */}
       <div className="relative w-24 h-24 rounded-full bg-white border-4 border-orange-200 overflow-hidden flex items-center justify-center shadow-md">
-        {/* Simple teacher SVG illustration */}
         <svg viewBox="0 0 80 80" width="80" height="80" fill="none">
-          {/* Body */}
           <rect x="20" y="42" width="40" height="32" rx="8" fill="#1a1a1a"/>
-          {/* Face */}
           <circle cx="40" cy="32" r="16" fill="#FDBCAC"/>
-          {/* Hair */}
           <ellipse cx="40" cy="20" rx="16" ry="10" fill="#3d2314"/>
           <ellipse cx="26" cy="32" rx="5" ry="12" fill="#3d2314"/>
           <ellipse cx="54" cy="32" rx="5" ry="12" fill="#3d2314"/>
-          {/* Glasses */}
           <rect x="30" y="31" width="10" height="7" rx="3" stroke="#555" strokeWidth="1.5" fill="none"/>
           <rect x="42" y="31" width="10" height="7" rx="3" stroke="#555" strokeWidth="1.5" fill="none"/>
           <path d="M40 34.5h2" stroke="#555" strokeWidth="1.2"/>
-          {/* Collar / shirt */}
           <path d="M30 52 L40 60 L50 52" fill="white"/>
         </svg>
       </div>
-      {/* Orbiting orange dots */}
       {[0, 60, 120, 180, 240, 300].map((deg) => {
         const rad = (deg * Math.PI) / 180;
         const x = 50 + 46 * Math.cos(rad);
@@ -48,11 +40,7 @@ function TeacherIllustration() {
           <div
             key={deg}
             className="absolute w-3 h-3 bg-orange-400 rounded-full border-2 border-white"
-            style={{
-              left: `${x}%`,
-              top: `${y}%`,
-              transform: "translate(-50%,-50%)",
-            }}
+            style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%,-50%)" }}
           />
         );
       })}
@@ -62,26 +50,45 @@ function TeacherIllustration() {
 
 export default function UploadPage() {
   const router = useRouter();
-  const [questionPaper, setQuestionPaper] = useState<UploadedFile | null>(null);
-  const [answerSheet, setAnswerSheet] = useState<UploadedFile | null>(null);
+  const {
+    questionPaper,
+    answerSheet,
+    setQuestionPaper,
+    setAnswerSheet,
+    setUploadError,
+    uploadError,
+  } = useAssessment();
+
+  const [qpValidationError, setQpValidationError] = useState<string | null>(null);
+  const [asValidationError, setAsValidationError] = useState<string | null>(null);
 
   const handleFileSelect = useCallback(
-    (setter: React.Dispatch<React.SetStateAction<UploadedFile | null>>) =>
+    (
+      setter: (f: UploadedFileMeta | null) => void,
+      errSetter: (e: string | null) => void,
+      label: string
+    ) =>
       (file: File) => {
-        setter({
-          file,
-          name: file.name,
-          size: file.size,
-          pages: Math.floor(Math.random() * 6) + 1, // mock page count
-        });
+        errSetter(null);
+        setUploadError(null);
+
+        const validation = validateFile(file, label);
+        if (!validation.valid) {
+          errSetter(validation.error ?? "Invalid file.");
+          setter(null);
+          return;
+        }
+
+        setter({ file, name: file.name, size: file.size });
       },
-    []
+    [setUploadError]
   );
 
   const bothSelected = questionPaper !== null && answerSheet !== null;
 
   const handleStartMapping = () => {
     if (!bothSelected) return;
+    // Navigate to processing page — the actual upload happens there
     router.push("/processing");
   };
 
@@ -92,7 +99,6 @@ export default function UploadPage() {
       <div className="flex flex-col flex-1 overflow-hidden">
         <TopBar breadcrumb="Exams" />
 
-        {/* Main content */}
         <main className="flex-1 overflow-auto p-8">
           <div className="max-w-4xl mx-auto">
             {/* Title */}
@@ -111,27 +117,44 @@ export default function UploadPage() {
               <TeacherIllustration />
             </div>
 
-            {/* Upload cards container */}
+            {/* Upload cards */}
             <div className="bg-white/60 rounded-3xl p-6 border border-gray-200 shadow-sm mb-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <UploadCard
-                  label="Upload"
-                  labelHighlight="Question Paper"
-                  file={questionPaper}
-                  onFileSelect={handleFileSelect(setQuestionPaper)}
-                  onFileRemove={() => setQuestionPaper(null)}
-                  className="min-h-[160px]"
-                />
-                <UploadCard
-                  label="Upload"
-                  labelHighlight="Answer Sheet"
-                  file={answerSheet}
-                  onFileSelect={handleFileSelect(setAnswerSheet)}
-                  onFileRemove={() => setAnswerSheet(null)}
-                  className="min-h-[160px]"
-                />
+                <div>
+                  <UploadCard
+                    label="Upload"
+                    labelHighlight="Question Paper"
+                    file={questionPaper}
+                    onFileSelect={handleFileSelect(setQuestionPaper, setQpValidationError, "Question paper")}
+                    onFileRemove={() => { setQuestionPaper(null); setQpValidationError(null); }}
+                    className="min-h-[160px]"
+                  />
+                  {qpValidationError && (
+                    <p className="text-xs text-red-600 mt-2 px-1">{qpValidationError}</p>
+                  )}
+                </div>
+                <div>
+                  <UploadCard
+                    label="Upload"
+                    labelHighlight="Answer Sheet"
+                    file={answerSheet}
+                    onFileSelect={handleFileSelect(setAnswerSheet, setAsValidationError, "Answer sheet")}
+                    onFileRemove={() => { setAnswerSheet(null); setAsValidationError(null); }}
+                    className="min-h-[160px]"
+                  />
+                  {asValidationError && (
+                    <p className="text-xs text-red-600 mt-2 px-1">{asValidationError}</p>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Global upload error */}
+            {uploadError && (
+              <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 text-center">
+                {uploadError}
+              </div>
+            )}
 
             {/* Start Mapping button */}
             <div className="flex flex-col items-center gap-3">

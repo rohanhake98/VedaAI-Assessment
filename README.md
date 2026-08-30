@@ -2,61 +2,105 @@
 
 AI Assessment Extraction & Answer Mapping application for evaluating handwritten student answer sheets against question papers.
 
-## Stack
+## Tech Stack
 
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
+- **Framework**: Next.js 15 (App Router)
+- **UI & Styling**: React 19, TypeScript, Tailwind CSS
+- **Document Processing**: `pdf-parse` (PDF structure & metadata), `sharp` (image processing & normalization)
+
+---
+
+## Current Implementation Status (Phase 3: File Upload & Document Normalization)
+
+### Real Functionality Implemented
+- **Browser File Selection**: Drag-and-drop & file picker support for both Question Paper and Student Answer Sheet.
+- **Client & Server-Side Validation**:
+  - Validates file presence, empty files, file extensions, and file sizes.
+  - Server-side validation inspects magic bytes (file signatures) to verify actual MIME types and prevent spoofed uploads.
+- **Multipart Upload Endpoint**: `POST /api/assessment/upload` handles concurrent question paper and answer sheet uploads.
+- **Document Normalization**:
+  - **PDF Documents**: Parsed with deterministic page counting and ordering, formatted into normalized `DocumentPage` structures.
+  - **Image Documents (PNG, JPEG, WEBP)**: Normalized using `sharp` to standard dimensions (max 2048px aspect-ratio preserving) and consistent format.
+- **Real Processing UI Flow**: The `/processing` route triggers real file upload and document normalization, dynamically progressing through stages and reporting actual errors.
+
+### Not Implemented Yet (Future Phases)
+- AI / OCR Question Extraction (Phase 4)
+- Student Handwriting / Answer Detection
+- Semantic Answer-to-Question Mapping
+- Answer Region Bounding Box Detection on raw PDFs
+- Automated Grading & AI Evaluation
+
+---
+
+## File Specifications & Limits
+
+- **Supported Formats**:
+  - PDF (`application/pdf`, `.pdf`)
+  - PNG (`image/png`, `.png`)
+  - JPEG / JPG (`image/jpeg`, `.jpg`, `.jpeg`)
+  - WEBP (`image/webp`, `.webp`)
+- **File Size Limit**: **20 MB** per file (enforced both client-side and server-side).
+
+---
+
+## Temporary Storage & Architecture
+
+- Processed document representations are maintained in temporary in-memory storage (`Map<string, ProcessingResult>`) keyed by `assessmentId` with automatic LRU pruning (keeping the last 10 processed items).
+- **Known Limitation**: In-memory storage is scoped to the Node.js server process and will not persist across server restarts or sync across multiple serverless/container instances. In production, this can be seamlessly replaced with object storage (S3, GCS, Cloudflare R2) and a shared cache (Redis) without altering the frontend API contract.
+
+---
 
 ## Project Structure
 
 ```text
 ├── app/
-│   ├── layout.tsx         # Root layout with font and metadata configuration
-│   ├── page.tsx           # Initial entry placeholder (Upload screen placeholder)
-│   ├── globals.css        # Tailwind CSS imports and global styles
-│   ├── processing/        # Processing stage route
-│   │   └── page.tsx
-│   └── assessment/        # Assessment & mapping review route
-│       └── page.tsx
+│   ├── api/
+│   │   └── assessment/
+│   │       └── upload/
+│   │           └── route.ts       # POST multipart upload & normalization API
+│   ├── layout.tsx                 # Root layout with AssessmentProvider
+│   ├── page.tsx                   # Upload Screen (Empty & Filled states)
+│   ├── processing/
+│   │   └── page.tsx               # Real upload & normalization progress screen
+│   ├── assessment/
+│   │   └── page.tsx               # Review & Mapping screen
+│   └── login/
+│       └── page.tsx               # Sign In / Sign Up screen
 ├── components/
-│   ├── layout/            # Layout wrappers, headers, navigation components
-│   ├── upload/            # File upload dropzones, file preview cards
-│   ├── processing/        # Progress bars, status steppers, loading indicators
-│   ├── assessment/        # Question list, score cards, mapping controls
-│   ├── answer-viewer/     # Answer sheet canvas / image viewer with region bounding boxes
-│   └── ui/                # Reusable foundational UI elements (buttons, modals, badges)
+│   ├── layout/                    # Sidebar, TopBar
+│   ├── upload/                    # UploadCard (supports PDF & images)
+│   ├── processing/                # LoadingScreen
+│   ├── assessment/                # QuestionList, QuestionItem
+│   ├── answer-viewer/             # AnswerViewer with zoom & page navigation
+│   └── ui/                        # VedaAILogo brand component
 ├── lib/
-│   ├── utils.ts           # Classnames helper (cn) and shared utilities
-│   └── types.ts           # Core TypeScript domain models (Question, Answer, Assessment)
-├── public/                # Public static assets
-└── design-reference/      # Exported Figma reference screens and components
-    ├── screens/           # Full screen mockups
-    └── components/        # Isolated component mockups
+│   ├── file-validation.ts         # Client/server file & magic-byte validation
+│   ├── assessment-context.tsx     # React Context for upload state
+│   ├── document-processing/       # PDF & image normalization pipeline
+│   │   ├── types.ts               # Domain models for DocumentPage, ProcessedDocument
+│   │   ├── pdf.ts                 # PDF page parsing
+│   │   ├── image.ts               # Sharp image normalization
+│   │   └── index.ts               # processAssessmentFiles pipeline entrypoint
+│   ├── types.ts                   # Assessment application types
+│   ├── mock-data.ts               # Mock data for assessment screen
+│   └── utils.ts                   # Classnames (cn) helper
+└── design-reference/              # Figma reference screens and components
 ```
 
-## Design References
+---
 
-The `design-reference/` directory contains the exported Figma reference screens and component mockups used as the visual source of truth for the final UI:
-- `design-reference/screens/upload-empty.png`: Upload Screen (Empty State)
-- `design-reference/screens/upload-filled.png`: Upload Screen (Filled State)
-- `design-reference/screens/loading.png`: Processing / Loading State
-- `design-reference/screens/question-answer-mapping.png`: Question-Answer Mapping & Region View Screen
-- `design-reference/components/component-1.png`: Component Reference 1
-- `design-reference/components/component-1-1.png`: Component Reference 1-1
+## Running the Project
 
-## Development Plan
+```bash
+# Install dependencies
+npm install
 
-Future implementation stages:
+# Start development server
+npm run dev
 
-1. Figma UI implementation
-2. Upload functionality
-3. Processing flow
-4. Question extraction
-5. Answer extraction
-6. Answer-question mapping
-7. Answer region highlighting
-8. Edge-case handling
-9. Optional grading
-10. Deployment
+# Run production build
+npm run build
+
+# Start production server
+npm start
+```

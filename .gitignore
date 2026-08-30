@@ -35,3 +35,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Uploaded user documents — never commit
+uploads/
+tmp/
+*.pdf.upload
+*.img.upload
+
+# Sharp native binaries (auto-installed)
+node_modules/.cache/sharp/
