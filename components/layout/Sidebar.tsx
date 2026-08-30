@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import VedaAILogo from "@/components/ui/VedaAILogo";
 
 type NavItem = {
   label: string;
@@ -95,17 +95,10 @@ export default function Sidebar({ activePage = "Exams" }: SidebarProps) {
       {/* Logo + collapse */}
       <div className={`flex items-center justify-between px-4 py-5 ${collapsed ? "justify-center px-0 flex-col gap-3" : ""}`}>
         {!collapsed && (
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-[#1a1a1a] rounded-lg flex items-center justify-center">
-              <Image src="/vedaai-logo.png" alt="VedaAI" width={24} height={24} className="brightness-0 invert" />
-            </div>
-            <span className="text-[#1a1a1a] font-bold text-xl tracking-tight">VedaAI</span>
-          </div>
+          <VedaAILogo size={36} showWordmark={true} wordmarkClassName="text-xl" />
         )}
         {collapsed && (
-          <div className="w-9 h-9 bg-[#1a1a1a] rounded-lg flex items-center justify-center">
-            <Image src="/vedaai-logo.png" alt="VedaAI" width={24} height={24} className="brightness-0 invert" />
-          </div>
+          <VedaAILogo size={36} showWordmark={false} />
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
