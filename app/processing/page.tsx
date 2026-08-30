@@ -16,13 +16,13 @@ interface Stage {
 }
 
 const INITIAL_STAGES: Stage[] = [
-  { id: "upload",   label: "Uploading files",       status: "pending" },
-  { id: "prepare",  label: "Preparing documents",    status: "pending" },
-  { id: "pages",    label: "Normalising pages",      status: "pending" },
-  // ── Future phases (shown but not active yet) ──────────────────────────
-  { id: "q_extract",label: "Extracting questions",  status: "pending" },
-  { id: "a_extract",label: "Extracting answers",    status: "pending" },
-  { id: "mapping",  label: "Mapping answers",        status: "pending" },
+  { id: "upload",    label: "Uploading files",             status: "pending" },
+  { id: "prepare",   label: "Preparing documents",          status: "pending" },
+  { id: "pages",     label: "Normalising pages",            status: "pending" },
+  { id: "q_extract", label: "Extracting questions (AI)",    status: "pending" },
+  // ── Future phases (pending) ────────────────────────────────────────────────
+  { id: "a_extract", label: "Extracting answers (Phase 5)", status: "pending" },
+  { id: "mapping",   label: "Mapping answers (Phase 6)",    status: "pending" },
 ];
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -77,10 +77,17 @@ function StageRow({ stage }: { stage: Stage }) {
   );
 }
 
-// ── Main page ────────────────────────────────────────────────────────────────
 export default function ProcessingPage() {
   const router = useRouter();
-  const { questionPaper, answerSheet, setProcessingResult, setUploadError } = useAssessment();
+  const {
+    questionPaper,
+    answerSheet,
+    setProcessingResult,
+    setExtractedQuestions,
+    setExtractionResult,
+    setUploadError,
+  } = useAssessment();
+
   const [stages, setStages] = useState<Stage[]>(INITIAL_STAGES);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const hasStarted = useRef(false);
@@ -89,52 +96,69 @@ export default function ProcessingPage() {
     setStages((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
 
   useEffect(() => {
-    // Guard: only run once
     if (hasStarted.current) return;
     hasStarted.current = true;
 
-    // Guard: files must be present (user may have refreshed directly)
     if (!questionPaper?.file || !answerSheet?.file) {
       setErrorMessage("No files found. Please go back and select both files.");
       return;
     }
 
-    async function uploadAndProcess() {
+    async function executeProcessingPipeline() {
       try {
-        // Stage 1: Upload
+        // ── Stage 1: Upload ──────────────────────────────────────────────────
         setStageStatus("upload", "active");
 
         const formData = new FormData();
         formData.append("questionPaper", questionPaper!.file, questionPaper!.name);
         formData.append("answerSheet", answerSheet!.file, answerSheet!.name);
 
-        const res = await fetch("/api/assessment/upload", {
+        const uploadRes = await fetch("/api/assessment/upload", {
           method: "POST",
           body: formData,
         });
 
-        setStageStatus("upload", "done");
-
-        // Stage 2: Prepare documents
-        setStageStatus("prepare", "active");
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data?.error ?? `Server error (${res.status}).`);
+        if (!uploadRes.ok) {
+          const data = await uploadRes.json().catch(() => ({}));
+          throw new Error(data?.error ?? `Upload failed (${uploadRes.status}).`);
         }
 
-        const data = await res.json();
-        setStageStatus("prepare", "done");
+        const uploadData = await uploadRes.json();
+        setStageStatus("upload", "done");
 
-        // Stage 3: Pages normalised (reported by server — we just show it done)
+        // ── Stage 2: Prepare Documents & Normalize Pages ─────────────────────
+        setStageStatus("prepare", "active");
+        setStageStatus("prepare", "done");
         setStageStatus("pages", "active");
-        await new Promise((r) => setTimeout(r, 400)); // small visual beat
         setStageStatus("pages", "done");
 
-        // Store result in context so assessment screen can use it
-        setProcessingResult(data);
+        setProcessingResult(uploadData);
 
-        // Navigate to assessment after brief pause
+        // ── Stage 3: Real AI Question Extraction (Phase 4) ────────────────────
+        setStageStatus("q_extract", "active");
+
+        const extractRes = await fetch("/api/assessment/extract-questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assessmentId: uploadData.assessmentId }),
+        });
+
+        const extractData = await extractRes.json().catch(() => ({}));
+
+        if (!extractRes.ok && extractData.status === "error") {
+          throw new Error(extractData?.error ?? "Question extraction encountered an error.");
+        }
+
+        setStageStatus("q_extract", "done");
+
+        if (extractData.questions && extractData.questions.length > 0) {
+          setExtractedQuestions(extractData.questions);
+          setExtractionResult(extractData);
+        } else if (extractData.status === "needs_review") {
+          setExtractionResult(extractData);
+        }
+
+        // Brief beat before navigating to review screen
         await new Promise((r) => setTimeout(r, 600));
         router.push("/assessment");
       } catch (err) {
@@ -147,7 +171,7 @@ export default function ProcessingPage() {
       }
     }
 
-    uploadAndProcess();
+    executeProcessingPipeline();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -166,15 +190,15 @@ export default function ProcessingPage() {
             <SparkleIcon />
           </div>
 
-          {/* Main text */}
+          {/* Main heading */}
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
             {isError ? "Processing failed" : "Extracting…"}
           </h2>
           <p className="text-gray-500 text-base mb-8">
-            {isError ? "" : "This may take a while"}
+            {isError ? "" : "Extracting questions with AI vision model"}
           </p>
 
-          {/* Error message */}
+          {/* Error display */}
           {isError && (
             <div className="mb-8 max-w-sm text-center px-6 py-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
               {errorMessage}
@@ -196,9 +220,8 @@ export default function ProcessingPage() {
             ))}
           </div>
 
-          {/* Note about future stages */}
-          <p className="text-xs text-gray-300 mt-6 max-w-xs text-center">
-            Question &amp; answer extraction will run in the next phase
+          <p className="text-xs text-gray-400 mt-6 max-w-xs text-center">
+            Answer extraction and question-answer mapping will run in Phase 5 &amp; 6
           </p>
         </div>
       </div>

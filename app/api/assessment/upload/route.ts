@@ -19,13 +19,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { processAssessmentFiles, ProcessingResult } from "@/lib/document-processing";
+import { processAssessmentFiles } from "@/lib/document-processing";
 import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_LABEL } from "@/lib/file-validation";
-
-// ── In-memory store ──────────────────────────────────────────────────────────
-// Stores the latest processing result per assessmentId.
-// NOTE: This is intentionally simple for the assignment; not production-grade.
-const assessmentStore = new Map<string, ProcessingResult>();
+import { assessmentStore } from "@/lib/assessment-store";
 
 export function GET() {
   return NextResponse.json({ message: "VedaAI Assessment API — use POST to upload files." });
@@ -97,14 +93,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errResult.message }, { status: 422 });
   }
 
-  // ── Store result in memory ───────────────────────────────────────────────
+  // ── Store result in shared assessment store ──────────────────────────────
   assessmentStore.set(result.assessmentId, result);
-
-  // Clean up old entries (keep only the last 10 to avoid memory leaks)
-  if (assessmentStore.size > 10) {
-    const oldest = assessmentStore.keys().next().value;
-    if (oldest) assessmentStore.delete(oldest);
-  }
 
   // ── Return summary response ──────────────────────────────────────────────
   // Do NOT include full base64 page images in the response — that would be huge.

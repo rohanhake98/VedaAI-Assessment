@@ -6,29 +6,99 @@ AI Assessment Extraction & Answer Mapping application for evaluating handwritten
 
 - **Framework**: Next.js 15 (App Router)
 - **UI & Styling**: React 19, TypeScript, Tailwind CSS
-- **Document Processing**: `pdf-parse` (PDF structure & metadata), `sharp` (image processing & normalization)
+- **AI / Vision**: Google Gemini API (`gemini-1.5-flash` / `gemini-2.0-flash` via `@google/genai`)
+- **Document Processing**: Pure-JS PDF Structure Parser, `sharp` (image processing & normalization)
 
 ---
 
-## Current Implementation Status (Phase 3: File Upload & Document Normalization)
+## Current Implementation Status (Phase 4: AI Question Extraction)
 
 ### Real Functionality Implemented
-- **Browser File Selection**: Drag-and-drop & file picker support for both Question Paper and Student Answer Sheet.
+- **Browser File Selection**: Drag-and-drop & file picker support for Question Paper and Student Answer Sheet.
 - **Client & Server-Side Validation**:
-  - Validates file presence, empty files, file extensions, and file sizes.
-  - Server-side validation inspects magic bytes (file signatures) to verify actual MIME types and prevent spoofed uploads.
-- **Multipart Upload Endpoint**: `POST /api/assessment/upload` handles concurrent question paper and answer sheet uploads.
-- **Document Normalization**:
-  - **PDF Documents**: Parsed with deterministic page counting and ordering, formatted into normalized `DocumentPage` structures.
-  - **Image Documents (PNG, JPEG, WEBP)**: Normalized using `sharp` to standard dimensions (max 2048px aspect-ratio preserving) and consistent format.
-- **Real Processing UI Flow**: The `/processing` route triggers real file upload and document normalization, dynamically progressing through stages and reporting actual errors.
+  - File presence, empty file, extension, and 20MB file size checks.
+  - Server-side magic-byte inspection (PDF, PNG, JPEG, WEBP).
+- **Multipart Upload API**: `POST /api/assessment/upload` handles concurrent uploads and normalizes document pages.
+- **AI Question Extraction API**: `POST /api/assessment/extract-questions`
+  - Extracts printed questions from question paper pages using Google Gemini Vision.
+  - Preserves exact printed numbering strings (e.g., `1`, `2`, `10`, `11(a)`, `11(b)`, `Q4(i)`).
+  - Preserves original printed order (`order` integer sequence).
+  - Separates sub-questions into distinct entries with `parentNumber` and `partLabel`.
+  - Merges multi-page question continuations into single items with `sourcePages: [1, 2]`.
+  - Captures maximum marks where indicated (e.g. `[2 Marks]`).
+  - Generates approximate bounding regions for each printed question.
+- **Live Review UI Flow**: The `/processing` route executes real document normalization followed by live AI question extraction, populating `/assessment` with real extracted questions.
 
 ### Not Implemented Yet (Future Phases)
-- AI / OCR Question Extraction (Phase 4)
-- Student Handwriting / Answer Detection
-- Semantic Answer-to-Question Mapping
-- Answer Region Bounding Box Detection on raw PDFs
-- Automated Grading & AI Evaluation
+- Student Handwritten Answer Extraction & OCR (Phase 5)
+- Answer-to-Question Semantic Mapping (Phase 6)
+- Answer Region Bounding Box Highlighting on Student Sheets (Phase 7)
+- Automated Evaluation & Grading (Phase 8)
+
+---
+
+## AI Question Extraction Architecture
+
+### Model & Provider
+- **Provider**: Google Gemini API (Free Tier compatible)
+- **Default Model**: `gemini-1.5-flash` (or `gemini-2.0-flash`)
+- **Why Selected**:
+  - Native multimodal vision handling multi-page documents seamlessly.
+  - Fast response times (<2s on free tier).
+  - High accuracy on complex document layouts, sub-parts, tables, and mixed alphanumeric numbering.
+  - Native structured JSON output enforcement.
+- **Configuration**:
+  - `GEMINI_API_KEY` or `AI_API_KEY` in `.env.local`
+  - `GEMINI_MODEL` (optional, defaults to `gemini-1.5-flash`)
+
+### Structured Output Schema
+```json
+{
+  "assessmentId": "uuid",
+  "status": "success",
+  "totalQuestions": 14,
+  "extractionTimeMs": 1450,
+  "modelUsed": "gemini-1.5-flash",
+  "questions": [
+    {
+      "id": "q-1-1",
+      "number": "1",
+      "text": "Which blood vessel carries blood away from the heart?",
+      "order": 1,
+      "parentNumber": null,
+      "partLabel": null,
+      "maxMarks": 2,
+      "sourcePages": [1],
+      "region": {
+        "page": 1,
+        "boundingBox": { "x": 100, "y": 150, "width": 1040, "height": 120 }
+      },
+      "confidence": 0.98
+    },
+    {
+      "id": "q-11-a-11",
+      "number": "11(a)",
+      "text": "Compare the leaf morphology of Plant A and Plant B.",
+      "order": 11,
+      "parentNumber": "11",
+      "partLabel": "a",
+      "maxMarks": 2,
+      "sourcePages": [2],
+      "region": {
+        "page": 2,
+        "boundingBox": { "x": 100, "y": 300, "width": 1040, "height": 160 }
+      },
+      "confidence": 0.96
+    }
+  ]
+}
+```
+
+### Server-Side Validation & Resilience
+- **Schema Validation**: Guarantees all items have valid question numbers, non-empty text, positive orders, and valid page references.
+- **Sub-part Normalization**: Automatically extracts and links parent/part relationships (e.g. `11(a)` → parent `"11"`, part `"a"`).
+- **Continuation Deduplication**: Resolves question continuations spanning page boundaries.
+- **Controlled Error States**: If no questions are found or API credentials are unconfigured, returns a clean `needs_review` response without crashing.
 
 ---
 
@@ -39,68 +109,31 @@ AI Assessment Extraction & Answer Mapping application for evaluating handwritten
   - PNG (`image/png`, `.png`)
   - JPEG / JPG (`image/jpeg`, `.jpg`, `.jpeg`)
   - WEBP (`image/webp`, `.webp`)
-- **File Size Limit**: **20 MB** per file (enforced both client-side and server-side).
+- **File Size Limit**: **20 MB** per file (enforced client-side and server-side).
 
 ---
 
 ## Temporary Storage & Architecture
 
-- Processed document representations are maintained in temporary in-memory storage (`Map<string, ProcessingResult>`) keyed by `assessmentId` with automatic LRU pruning (keeping the last 10 processed items).
-- **Known Limitation**: In-memory storage is scoped to the Node.js server process and will not persist across server restarts or sync across multiple serverless/container instances. In production, this can be seamlessly replaced with object storage (S3, GCS, Cloudflare R2) and a shared cache (Redis) without altering the frontend API contract.
-
----
-
-## Project Structure
-
-```text
-├── app/
-│   ├── api/
-│   │   └── assessment/
-│   │       └── upload/
-│   │           └── route.ts       # POST multipart upload & normalization API
-│   ├── layout.tsx                 # Root layout with AssessmentProvider
-│   ├── page.tsx                   # Upload Screen (Empty & Filled states)
-│   ├── processing/
-│   │   └── page.tsx               # Real upload & normalization progress screen
-│   ├── assessment/
-│   │   └── page.tsx               # Review & Mapping screen
-│   └── login/
-│       └── page.tsx               # Sign In / Sign Up screen
-├── components/
-│   ├── layout/                    # Sidebar, TopBar
-│   ├── upload/                    # UploadCard (supports PDF & images)
-│   ├── processing/                # LoadingScreen
-│   ├── assessment/                # QuestionList, QuestionItem
-│   ├── answer-viewer/             # AnswerViewer with zoom & page navigation
-│   └── ui/                        # VedaAILogo brand component
-├── lib/
-│   ├── file-validation.ts         # Client/server file & magic-byte validation
-│   ├── assessment-context.tsx     # React Context for upload state
-│   ├── document-processing/       # PDF & image normalization pipeline
-│   │   ├── types.ts               # Domain models for DocumentPage, ProcessedDocument
-│   │   ├── pdf.ts                 # PDF page parsing
-│   │   ├── image.ts               # Sharp image normalization
-│   │   └── index.ts               # processAssessmentFiles pipeline entrypoint
-│   ├── types.ts                   # Assessment application types
-│   ├── mock-data.ts               # Mock data for assessment screen
-│   └── utils.ts                   # Classnames (cn) helper
-└── design-reference/              # Figma reference screens and components
-```
+- Stored in an in-memory `assessmentStore` (`Map<string, StoredAssessment>`) with automatic LRU pruning (retaining last 25 assessments).
+- **Known Limitation**: In-memory storage is per server process. In production, this can be swapped with Redis / Object Storage (S3 / GCS) without altering the frontend contract.
 
 ---
 
 ## Running the Project
 
 ```bash
-# Install dependencies
+# 1. Copy environment template and add your Gemini API key
+cp .env.example .env.local
+# Edit .env.local and set: GEMINI_API_KEY=your_key_here
+
+# 2. Install dependencies
 npm install
 
-# Start development server
+# 3. Start development server
 npm run dev
 
-# Run production build
+# 4. Or build & run production server
 npm run build
-
-# Start production server
 npm start
 ```

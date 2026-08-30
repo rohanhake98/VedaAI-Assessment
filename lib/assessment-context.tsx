@@ -2,14 +2,14 @@
  * AssessmentContext — client-side state shared across the upload → processing → assessment flow.
  *
  * Stores:
- * - The two selected File objects (not uploaded yet)
- * - The API response after processing (assessmentId, page counts, etc.)
- *
- * Does NOT store full page image buffers — those live server-side in the in-memory store.
+ * - Selected File objects
+ * - Upload/processing metadata result (assessmentId, page counts, etc.)
+ * - Real AI-extracted questions
  */
 "use client";
 
 import { createContext, useContext, useState, ReactNode } from "react";
+import { ExtractedQuestion, QuestionExtractionResult } from "@/lib/ai/types";
 
 export interface UploadedFileMeta {
   file: File;
@@ -38,10 +38,14 @@ interface AssessmentState {
   questionPaper: UploadedFileMeta | null;
   answerSheet: UploadedFileMeta | null;
   processingResult: ApiProcessingResult | null;
+  extractedQuestions: ExtractedQuestion[];
+  extractionResult: QuestionExtractionResult | null;
   uploadError: string | null;
   setQuestionPaper: (f: UploadedFileMeta | null) => void;
   setAnswerSheet: (f: UploadedFileMeta | null) => void;
   setProcessingResult: (r: ApiProcessingResult | null) => void;
+  setExtractedQuestions: (q: ExtractedQuestion[]) => void;
+  setExtractionResult: (r: QuestionExtractionResult | null) => void;
   setUploadError: (e: string | null) => void;
   clearAll: () => void;
 }
@@ -52,12 +56,16 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
   const [questionPaper, setQuestionPaper] = useState<UploadedFileMeta | null>(null);
   const [answerSheet, setAnswerSheet] = useState<UploadedFileMeta | null>(null);
   const [processingResult, setProcessingResult] = useState<ApiProcessingResult | null>(null);
+  const [extractedQuestions, setExtractedQuestions] = useState<ExtractedQuestion[]>([]);
+  const [extractionResult, setExtractionResult] = useState<QuestionExtractionResult | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const clearAll = () => {
     setQuestionPaper(null);
     setAnswerSheet(null);
     setProcessingResult(null);
+    setExtractedQuestions([]);
+    setExtractionResult(null);
     setUploadError(null);
   };
 
@@ -67,10 +75,14 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
         questionPaper,
         answerSheet,
         processingResult,
+        extractedQuestions,
+        extractionResult,
         uploadError,
         setQuestionPaper,
         setAnswerSheet,
         setProcessingResult,
+        setExtractedQuestions,
+        setExtractionResult,
         setUploadError,
         clearAll,
       }}

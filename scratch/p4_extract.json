@@ -1,0 +1,1 @@
+{"assessmentId":"993a582c-fd2a-40dd-b739-76887e974d53","status":"needs_review","questions":[],"totalQuestions":0,"extractionTimeMs":0,"modelUsed":"gemini-1.5-flash","message":"Gemini API key is not configured. Please set GEMINI_API_KEY in your environment (.env.local) to enable live AI extraction.","createdAt":"2026-08-30T16:08:42.631Z"}
