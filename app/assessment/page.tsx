@@ -125,7 +125,7 @@ export default function AssessmentPage() {
 
           <div className="flex items-center gap-2 text-gray-500">
             <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[11px] font-semibold">
-              Phase 6: Answer Mapping Active
+              Phase 7: Exact Region Highlighting Active
             </span>
           </div>
         </div>

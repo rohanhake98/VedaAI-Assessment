@@ -14,7 +14,7 @@ AI Assessment Extraction & Answer Mapping application for evaluating handwritten
 
 ---
 
-## Current Implementation Status (Phase 6: Answer-to-Question Mapping Engine)
+## Current Implementation Status (Phase 7: Exact Answer-Region Highlighting & Review)
 
 ### Real Functionality Implemented
 - **Browser File Selection**: Drag-and-drop & file picker support for Question Paper and Student Answer Sheet.
@@ -41,94 +41,36 @@ AI Assessment Extraction & Answer Mapping application for evaluating handwritten
   - **Unmatched Answers**: Preserves extraneous student answers (e.g. Q17 not present in QP) under an Unmatched Answers panel.
   - **Hybrid Semantic Fallback**: Uses keyword containment (Overlap Coefficient) and Jaccard similarity with optional AI reasoning fallback for unlabelled answers.
   - **Multi-page Answer Region Preservation**: Maps multi-page answers to their single parent question with all page bounding boxes intact.
-  - **Interactive Teacher Review**: `QuestionList` and `AnswerViewer` render real bounding boxes, page jumping, and unanswered states.
+- **Interactive Teacher Review & Exact Region Highlighting** (Phase 7):
+  - **Exact Bounding Box Overlay**: Renders scaled bounding boxes corresponding directly to AI coordinates.
+  - **Proportional Coordinate Scaling**: Dynamically scales coordinates ($\text{scale} = \text{displayedWidth} / \text{originalWidth} = 558 / 1240 \approx 0.45$).
+  - **Zoom & Transform Synchronization**: Highlights remain 100% aligned with handwriting across zoom levels (50% to 200%) and responsive viewport resize.
+  - **Multi-Page Answer Viewer**: Direct page navigation buttons (`Page 3`, `Page 4`) for multi-page answers.
+  - **Unanswered State**: Displays a clean notice for unanswered questions with zero fake bounding boxes.
+  - **Unmatched Answers Inspection**: Clickable panel jumping to the answer sheet page with a distinctive purple highlight.
+  - **Keyboard Navigation**: Arrow keys for page switching, `+`/`-` for zoom, and `Ctrl+0` for zoom reset.
 
 ### Not Implemented Yet (Future Phases)
-- Automated Evaluation, Marks Calculation & AI Feedback (Phase 7 / Phase 8)
+- Automated Evaluation, Marks Calculation & AI Feedback (Phase 8)
 
 ---
 
-## Answer Mapping Architecture
+## Answer Review & Highlighting Architecture
 
-### Mapping Pipeline & Priority
+### Coordinate Scaling & Viewport Synchronization
 ```text
-Extracted Questions + Extracted Answers
-                   ↓
-1. Canonical Key Normalization (e.g. "Ans 11 a" → "11(a)")
-                   ↓
-2. Exact Question-Number & Sub-Part Matching (11(a) → 11(a), 11(b) → 11(b))
-                   ↓
-3. Duplicate Detection (Multiple attempts for same question → Ambiguous)
-                   ↓
-4. Unmatched Detection (Question references not present in paper)
-                   ↓
-5. Hybrid Semantic Fallback for Unlabelled Answers (Overlap + Jaccard)
-                   ↓
-6. Unanswered Assignment (Remaining questions marked unanswered)
-                   ↓
-7. Assembly & Sorting by Original Printed Question Order (1..N)
+Original Normalized Image Dimensions: 1240 × 1754 px
+Displayed Canvas Dimensions:         558 × 789 px
+Base Scaling Factor:                 558 / 1240 = 0.45
+
+Display Coordinates:
+  displayX = originalX * 0.45
+  displayY = originalY * 0.45
+  displayWidth = originalWidth * 0.45
+  displayHeight = originalHeight * 0.45
 ```
 
-### Mapping Data Model
-```json
-{
-  "assessmentId": "uuid",
-  "status": "success",
-  "totalQuestions": 14,
-  "answeredCount": 11,
-  "unansweredCount": 3,
-  "ambiguousCount": 0,
-  "unmatchedAnswerCount": 1,
-  "mappedQuestions": [
-    {
-      "questionId": "q-1-1",
-      "questionNumber": "1",
-      "canonicalKey": "1",
-      "order": 1,
-      "text": "Which blood vessel carries blood away from the heart?",
-      "mappingStatus": "answered",
-      "answerId": "ans-1-2",
-      "answerText": "Arteries carry oxygenated blood away from the heart...",
-      "regions": [
-        {
-          "page": 1,
-          "boundingBox": { "x": 80, "y": 120, "width": 1080, "height": 220 }
-        }
-      ],
-      "confidence": 0.95,
-      "matchMethod": "explicit_exact"
-    },
-    {
-      "questionId": "q-2-2",
-      "questionNumber": "2",
-      "canonicalKey": "2",
-      "order": 2,
-      "text": "Explain photosynthesis chemical formula.",
-      "mappingStatus": "unanswered",
-      "answerId": null,
-      "regions": [],
-      "confidence": 1.0,
-      "matchMethod": "none"
-    }
-  ],
-  "unmatchedAnswers": [
-    {
-      "answerId": "ans-9-1",
-      "detectedQuestionNumber": "9",
-      "text": "Hydraulic lift principle based on Pascal law...",
-      "regions": [
-        { "page": 3, "boundingBox": { "x": 80, "y": 100, "width": 1080, "height": 250 } }
-      ],
-      "confidence": 0.92,
-      "reason": "Question reference \"9\" does not exist in question paper."
-    }
-  ]
-}
-```
-
-### Coordinate Scaling in AnswerViewer
-- **Origin**: Top-left `(0, 0)`.
-- **Canvas Scaling**: Normalized coordinates $\{ x, y, \text{width}, \text{height} \}$ dynamically scale with zoom and screen dimensions (`scaledX = originalX * scaleFactor`), preserving precise alignment with handwriting.
+The canvas and overlay reside inside the same relative container. When zooming or resizing, CSS `transform: scale(...)` applies uniformly to both image and highlights, eliminating coordinate drift.
 
 ---
 
