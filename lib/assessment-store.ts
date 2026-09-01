@@ -7,11 +7,13 @@
 
 import { ProcessingResult } from "@/lib/document-processing/types";
 import { QuestionExtractionResult, AnswerExtractionResult } from "@/lib/ai/types";
+import { MappingResult } from "@/lib/mapping/types";
 
 export interface StoredAssessment {
   processingResult: ProcessingResult;
   extractedQuestionsResult?: QuestionExtractionResult;
   extractedAnswersResult?: AnswerExtractionResult;
+  mappingResult?: MappingResult;
   updatedAt: number;
 }
 
@@ -65,6 +67,24 @@ class AssessmentStore {
     assessmentId: string
   ): AnswerExtractionResult | undefined {
     return this.store.get(assessmentId)?.extractedAnswersResult;
+  }
+
+  public setMappingResult(
+    assessmentId: string,
+    mappingResult: MappingResult
+  ): boolean {
+    const item = this.store.get(assessmentId);
+    if (!item) return false;
+
+    item.mappingResult = mappingResult;
+    item.updatedAt = Date.now();
+    return true;
+  }
+
+  public getMappingResult(
+    assessmentId: string
+  ): MappingResult | undefined {
+    return this.store.get(assessmentId)?.mappingResult;
   }
 
   private prune(): void {

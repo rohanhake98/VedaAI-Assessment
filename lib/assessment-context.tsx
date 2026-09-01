@@ -16,6 +16,7 @@ import {
   ExtractedAnswer,
   AnswerExtractionResult,
 } from "@/lib/ai/types";
+import { MappingResult } from "@/lib/mapping/types";
 
 export interface UploadedFileMeta {
   file: File;
@@ -48,6 +49,7 @@ interface AssessmentState {
   extractionResult: QuestionExtractionResult | null;
   extractedAnswers: ExtractedAnswer[];
   answerExtractionResult: AnswerExtractionResult | null;
+  mappingResult: MappingResult | null;
   uploadError: string | null;
   setQuestionPaper: (f: UploadedFileMeta | null) => void;
   setAnswerSheet: (f: UploadedFileMeta | null) => void;
@@ -56,6 +58,7 @@ interface AssessmentState {
   setExtractionResult: (r: QuestionExtractionResult | null) => void;
   setExtractedAnswers: (a: ExtractedAnswer[]) => void;
   setAnswerExtractionResult: (r: AnswerExtractionResult | null) => void;
+  setMappingResult: (m: MappingResult | null) => void;
   setUploadError: (e: string | null) => void;
   clearAll: () => void;
 }
@@ -70,6 +73,7 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
   const [extractionResult, setExtractionResult] = useState<QuestionExtractionResult | null>(null);
   const [extractedAnswers, setExtractedAnswers] = useState<ExtractedAnswer[]>([]);
   const [answerExtractionResult, setAnswerExtractionResult] = useState<AnswerExtractionResult | null>(null);
+  const [mappingResult, setMappingResult] = useState<MappingResult | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const clearAll = () => {
@@ -80,6 +84,7 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
     setExtractionResult(null);
     setExtractedAnswers([]);
     setAnswerExtractionResult(null);
+    setMappingResult(null);
     setUploadError(null);
   };
 
@@ -93,6 +98,7 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
         extractionResult,
         extractedAnswers,
         answerExtractionResult,
+        mappingResult,
         uploadError,
         setQuestionPaper,
         setAnswerSheet,
@@ -101,6 +107,7 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
         setExtractionResult,
         setExtractedAnswers,
         setAnswerExtractionResult,
+        setMappingResult,
         setUploadError,
         clearAll,
       }}

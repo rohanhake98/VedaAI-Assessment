@@ -21,8 +21,7 @@ const INITIAL_STAGES: Stage[] = [
   { id: "pages",     label: "Normalising pages",                    status: "pending" },
   { id: "q_extract", label: "Extracting questions (AI Vision)",     status: "pending" },
   { id: "a_extract", label: "Extracting handwritten answers (AI)",  status: "pending" },
-  // ── Future phases (pending) ────────────────────────────────────────────────
-  { id: "mapping",   label: "Mapping answers (Phase 6)",            status: "pending" },
+  { id: "mapping",   label: "Mapping answers to questions",         status: "pending" },
 ];
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -87,6 +86,7 @@ export default function ProcessingPage() {
     setExtractionResult,
     setExtractedAnswers,
     setAnswerExtractionResult,
+    setMappingResult,
     setUploadError,
   } = useAssessment();
 
@@ -184,6 +184,27 @@ export default function ProcessingPage() {
           setAnswerExtractionResult(aExtractData);
         }
 
+        // ── Stage 5: Real Answer Mapping Engine (Phase 6) ─────────────────────
+        setStageStatus("mapping", "active");
+
+        const mapRes = await fetch("/api/assessment/map-answers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assessmentId: uploadData.assessmentId }),
+        });
+
+        const mapData = await mapRes.json().catch(() => ({}));
+
+        if (!mapRes.ok && mapData.status === "error") {
+          throw new Error(mapData?.error ?? "Answer mapping encountered an error.");
+        }
+
+        setStageStatus("mapping", "done");
+
+        if (mapData.mappedQuestions) {
+          setMappingResult(mapData);
+        }
+
         // Brief beat before navigating to review screen
         await new Promise((r) => setTimeout(r, 600));
         router.push("/assessment");
@@ -218,10 +239,10 @@ export default function ProcessingPage() {
 
           {/* Main heading */}
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {isError ? "Processing failed" : "Extracting…"}
+            {isError ? "Processing failed" : "Processing assessment…"}
           </h2>
           <p className="text-gray-500 text-base mb-8">
-            {isError ? "" : "Extracting questions and student answers with AI vision"}
+            {isError ? "" : "Extracting questions, handwriting, and mapping answers"}
           </p>
 
           {/* Error display */}
@@ -247,7 +268,7 @@ export default function ProcessingPage() {
           </div>
 
           <p className="text-xs text-gray-400 mt-6 max-w-xs text-center">
-            Answer mapping and grading will run in Phase 6 &amp; 7
+            Answer mapping is active (Phase 6)
           </p>
         </div>
       </div>

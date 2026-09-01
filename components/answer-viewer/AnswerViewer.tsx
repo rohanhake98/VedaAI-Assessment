@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Answer } from "@/lib/types";
-import { ExtractedAnswer } from "@/lib/ai/types";
+import { ExtractedAnswer, AnswerRegion } from "@/lib/ai/types";
 
 const MinusIcon = () => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -28,12 +28,10 @@ const ChevronRightIcon = () => (
   </svg>
 );
 
-const TOTAL_PAGES = 4;
-
 interface PageRegionOverlayProps {
   label: string;
   box: { x: number; y: number; width: number; height: number };
-  color?: "green" | "orange" | "blue";
+  color?: "green" | "orange" | "purple" | "blue";
   confidence?: number;
 }
 
@@ -44,26 +42,31 @@ function RegionBox({ label, box, color = "green", confidence }: PageRegionOverla
   const colorStyles = {
     green: {
       border: "border-[#22c55e]",
-      bg: "bg-[#22c55e]/10",
+      bg: "bg-[#22c55e]/15",
       badge: "bg-[#22c55e]",
     },
     orange: {
       border: "border-[#E85D27]",
-      bg: "bg-[#E85D27]/10",
+      bg: "bg-[#E85D27]/15",
       badge: "bg-[#E85D27]",
+    },
+    purple: {
+      border: "border-purple-600",
+      bg: "bg-purple-600/15",
+      badge: "bg-purple-600",
     },
     blue: {
       border: "border-blue-500",
-      bg: "bg-blue-500/10",
+      bg: "bg-blue-500/15",
       badge: "bg-blue-500",
     },
   };
 
-  const style = colorStyles[color];
+  const style = colorStyles[color] || colorStyles.green;
 
   return (
     <div
-      className={`absolute border-2 ${style.border} ${style.bg} rounded transition-all duration-300 pointer-events-auto`}
+      className={`absolute border-2 ${style.border} ${style.bg} rounded transition-all duration-300 pointer-events-auto shadow-sm`}
       style={{
         left: `${Math.max(0, box.x * scale)}px`,
         top: `${Math.max(0, box.y * scale)}px`,
@@ -71,17 +74,17 @@ function RegionBox({ label, box, color = "green", confidence }: PageRegionOverla
         height: `${Math.max(30, box.height * scale)}px`,
       }}
     >
-      <div className={`absolute -top-3 -left-3 px-1.5 py-0.5 ${style.badge} rounded text-white text-[10px] font-bold flex items-center gap-1 shadow-sm`}>
+      <div className={`absolute -top-3 -left-3 px-1.5 py-0.5 ${style.badge} rounded text-white text-[10px] font-bold flex items-center gap-1 shadow-md`}>
         <span>{label}</span>
         {confidence !== undefined && (
-          <span className="opacity-80 text-[8px]">({Math.round(confidence * 100)}%)</span>
+          <span className="opacity-85 text-[8px]">({Math.round(confidence * 100)}%)</span>
         )}
       </div>
     </div>
   );
 }
 
-// Answer Sheet Page with ruled lines and region boxes
+// Answer Sheet Canvas with ruled lines and rendered regions
 function AnswerSheetCanvasPage({
   page,
   regions = [],
@@ -91,7 +94,7 @@ function AnswerSheetCanvasPage({
     label: string;
     box: { x: number; y: number; width: number; height: number };
     confidence?: number;
-    color?: "green" | "orange" | "blue";
+    color?: "green" | "orange" | "purple" | "blue";
   }[];
 }) {
   const sampleLines = [
@@ -102,7 +105,7 @@ function AnswerSheetCanvasPage({
   ];
 
   return (
-    <div className="relative w-[558px] h-[789px] bg-[#f8f6ef] rounded border border-gray-300 shadow-md overflow-hidden font-mono mx-auto select-none">
+    <div className="relative w-[558px] h-[789px] bg-[#f8f6ef] rounded border border-gray-300 shadow-lg overflow-hidden font-mono mx-auto select-none">
       {/* Ruled notebook lines */}
       {Array.from({ length: 28 }).map((_, i) => (
         <div
@@ -115,7 +118,7 @@ function AnswerSheetCanvasPage({
       <div className="absolute top-0 bottom-0 left-16 border-l-2 border-red-300" />
 
       {/* Page number watermark top right */}
-      <div className="absolute top-2 right-4 text-[10px] text-gray-400 font-sans">
+      <div className="absolute top-2 right-4 text-[10px] text-gray-400 font-sans font-semibold">
         Page {page}
       </div>
 
@@ -159,47 +162,74 @@ function AnswerSheetCanvasPage({
 }
 
 interface AnswerViewerProps {
-  answer: Answer | null;
+  answer?: Answer | null;
   questionNumber?: string | number;
+  status?: "answered" | "unanswered" | "ambiguous" | "unmatched";
+  matchedRegions?: AnswerRegion[];
   realAnswers?: ExtractedAnswer[];
+  pageCount?: number;
 }
 
 export default function AnswerViewer({
   answer,
   questionNumber,
+  status = "answered",
+  matchedRegions = [],
   realAnswers = [],
+  pageCount = 4,
 }: AnswerViewerProps) {
   const [zoom, setZoom] = useState(100);
-  const [currentPage, setCurrentPage] = useState(
-    answer?.regions?.[0]?.page ?? 1
-  );
+  const [currentPage, setCurrentPage] = useState(1);
   const [showDebugCandidates, setShowDebugCandidates] = useState(false);
+
+  const totalPages = Math.max(1, pageCount);
+
+  // Automatically sync current page when selected question has regions on another page
+  useEffect(() => {
+    if (matchedRegions.length > 0) {
+      setCurrentPage(matchedRegions[0].page);
+    } else if (answer?.regions?.[0]) {
+      setCurrentPage(answer.regions[0].page);
+    }
+  }, [matchedRegions, answer]);
 
   const handleZoomIn = () => setZoom((z) => Math.min(z + 25, 200));
   const handleZoomOut = () => setZoom((z) => Math.max(z - 25, 50));
   const handlePrevPage = () => setCurrentPage((p) => Math.max(p - 1, 1));
-  const handleNextPage = () => setCurrentPage((p) => Math.min(p + 1, TOTAL_PAGES));
+  const handleNextPage = () => setCurrentPage((p) => Math.min(p + 1, totalPages));
 
-  // Determine active region from selected answer
-  const activeRegion = answer?.regions?.find((r) => r.page === currentPage);
-
-  // Compute regions to render on the canvas for current page
+  // Compute regions to render on current page
   const pageRegions: {
     label: string;
     box: { x: number; y: number; width: number; height: number };
     confidence?: number;
-    color?: "green" | "orange" | "blue";
+    color?: "green" | "orange" | "purple" | "blue";
   }[] = [];
 
-  if (activeRegion) {
-    pageRegions.push({
-      label: `Q${questionNumber ?? ""}`,
-      box: activeRegion.boundingBox,
-      color: "green",
+  // Real matched regions from Phase 6 mapping
+  if (matchedRegions.length > 0) {
+    matchedRegions.forEach((r) => {
+      if (r.page === currentPage) {
+        pageRegions.push({
+          label: status === "unmatched" ? `Unmatched` : `Q${questionNumber ?? ""}`,
+          box: r.boundingBox,
+          color: status === "unmatched" ? "purple" : status === "ambiguous" ? "orange" : "green",
+        });
+      }
     });
+  } else if (answer?.regions) {
+    // Fallback to mock regions if in demo mode
+    const activeRegion = answer.regions.find((r) => r.page === currentPage);
+    if (activeRegion) {
+      pageRegions.push({
+        label: `Q${questionNumber ?? ""}`,
+        box: activeRegion.boundingBox,
+        color: "green",
+      });
+    }
   }
 
-  // If debug inspection is toggled on, show all detected real answers on this page
+  // Debug inspection overlay (shows all candidate answer regions)
   if (showDebugCandidates && realAnswers.length > 0) {
     realAnswers.forEach((ans) => {
       ans.regions.forEach((r) => {
@@ -215,12 +245,14 @@ export default function AnswerViewer({
     });
   }
 
+  const isUnanswered = status === "unanswered";
+
   return (
     <div className="flex flex-col h-full bg-[#2a2a2a] overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-[#1e1e1e] flex-shrink-0 border-b border-gray-800">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-gray-200">Answer Sheet</span>
+          <span className="text-sm font-medium text-gray-200">Answer Sheet Viewer</span>
           {realAnswers.length > 0 && (
             <button
               onClick={() => setShowDebugCandidates(!showDebugCandidates)}
@@ -266,11 +298,11 @@ export default function AnswerViewer({
               <ChevronLeftIcon />
             </button>
             <span className="text-xs text-gray-300 px-2 whitespace-nowrap">
-              Page {currentPage} of {TOTAL_PAGES}
+              Page {currentPage} of {totalPages}
             </span>
             <button
               onClick={handleNextPage}
-              disabled={currentPage >= TOTAL_PAGES}
+              disabled={currentPage >= totalPages}
               className="p-1 text-gray-400 hover:text-white disabled:opacity-30 transition-colors rounded"
               aria-label="Next page"
             >
@@ -279,6 +311,38 @@ export default function AnswerViewer({
           </div>
         </div>
       </div>
+
+      {/* Unanswered or Multi-page notice banner */}
+      {isUnanswered ? (
+        <div className="bg-gray-800/90 text-gray-300 px-4 py-2 text-xs flex items-center justify-between border-b border-gray-700">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-gray-400" />
+            <span>Question {questionNumber} is <strong>Unanswered</strong> — no student answer was mapped to this question.</span>
+          </div>
+        </div>
+      ) : matchedRegions.length > 1 ? (
+        <div className="bg-emerald-950/80 text-emerald-300 px-4 py-2 text-xs flex items-center justify-between border-b border-emerald-900">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>
+              Multi-page answer spanning pages: <strong>{matchedRegions.map((r) => `p.${r.page}`).join(", ")}</strong>.
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {matchedRegions.map((r, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentPage(r.page)}
+                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                  currentPage === r.page ? "bg-emerald-500 text-white" : "bg-emerald-900 text-emerald-200 hover:bg-emerald-800"
+                }`}
+              >
+                Go to p.{r.page}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* Debug candidate inspection drawer (when toggled) */}
       {showDebugCandidates && realAnswers.length > 0 && (
