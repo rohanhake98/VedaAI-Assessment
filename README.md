@@ -2,6 +2,9 @@
 
 AI Assessment Extraction & Answer Mapping application for evaluating handwritten student answer sheets against question papers.
 
+<img width="1535" height="835" alt="Screenshot 2026-09-01 221253" src="https://github.com/user-attachments/assets/9d2cd74c-912d-415d-98b4-de075017ef30" />
+
+
 ## Tech Stack
 
 - **Framework**: Next.js 15 (App Router)
