@@ -7,6 +7,8 @@
  *   - GEMINI_MODEL or AI_MODEL (default: "gemini-1.5-flash")
  */
 
+import { GoogleGenAI } from "@google/genai";
+
 export interface AiImagePart {
   inlineData: {
     mimeType: string;
@@ -79,8 +81,6 @@ export class AiClient {
 
     // Use official SDK if available, with REST fallback
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { GoogleGenAI } = require("@google/genai");
       const ai = new GoogleGenAI({ apiKey: this.apiKey });
 
       // Transform parts into SDK format

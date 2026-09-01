@@ -7,7 +7,7 @@
  */
 
 import { DocumentPage, ProcessedDocument } from "@/lib/document-processing/types";
-import { AiClient, AiPart } from "./client";
+import { AiClient, aiClient, AiPart } from "./client";
 import {
   AnswerExtractionResult,
   AnswerRegion,
@@ -84,8 +84,6 @@ export class AnswerExtractor {
   private aiClient: AiClient;
 
   constructor(aiClientInstance?: AiClient) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { aiClient } = require("./client");
     this.aiClient = aiClientInstance || aiClient;
   }
 
