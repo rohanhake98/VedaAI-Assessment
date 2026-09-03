@@ -22,6 +22,7 @@ const INITIAL_STAGES: Stage[] = [
   { id: "q_extract", label: "Extracting questions (AI Vision)",     status: "pending" },
   { id: "a_extract", label: "Extracting handwritten answers (AI)",  status: "pending" },
   { id: "mapping",   label: "Mapping answers to questions",         status: "pending" },
+  { id: "grading",   label: "AI-assisted grading & scoring",        status: "pending" },
 ];
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ export default function ProcessingPage() {
     setExtractedAnswers,
     setAnswerExtractionResult,
     setMappingResult,
+    setGradingResult,
     setUploadError,
   } = useAssessment();
 
@@ -205,6 +207,27 @@ export default function ProcessingPage() {
           setMappingResult(mapData);
         }
 
+        // ── Stage 6: Real AI-Assisted Grading Engine (Phase 8) ────────────────
+        setStageStatus("grading", "active");
+
+        const gradeRes = await fetch("/api/assessment/grade", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assessmentId: uploadData.assessmentId }),
+        });
+
+        const gradeData = await gradeRes.json().catch(() => ({}));
+
+        if (!gradeRes.ok && gradeData.status === "error") {
+          throw new Error(gradeData?.error ?? "Grading encountered an error.");
+        }
+
+        setStageStatus("grading", "done");
+
+        if (gradeData.grades) {
+          setGradingResult(gradeData);
+        }
+
         // Brief beat before navigating to review screen
         await new Promise((r) => setTimeout(r, 600));
         router.push("/assessment");
@@ -239,10 +262,10 @@ export default function ProcessingPage() {
 
           {/* Main heading */}
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {isError ? "Processing failed" : "Processing assessment…"}
+            {isError ? "Processing failed" : "Evaluating assessment…"}
           </h2>
           <p className="text-gray-500 text-base mb-8">
-            {isError ? "" : "Extracting questions, handwriting, and mapping answers"}
+            {isError ? "" : "Extracting questions, mapping answers, and calculating AI-assisted grades"}
           </p>
 
           {/* Error display */}
@@ -268,7 +291,7 @@ export default function ProcessingPage() {
           </div>
 
           <p className="text-xs text-gray-400 mt-6 max-w-xs text-center">
-            Answer mapping is active (Phase 6)
+            AI grading & deterministic scoring active (Phase 8)
           </p>
         </div>
       </div>

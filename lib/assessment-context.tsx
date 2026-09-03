@@ -6,6 +6,8 @@
  * - Upload/processing metadata result (assessmentId, page counts, etc.)
  * - Real AI-extracted questions (Phase 4)
  * - Real AI-extracted handwritten answers & regions (Phase 5)
+ * - Real answer mapping result (Phase 6)
+ * - Real AI-assisted grading & marks result (Phase 8)
  */
 "use client";
 
@@ -17,6 +19,8 @@ import {
   AnswerExtractionResult,
 } from "@/lib/ai/types";
 import { MappingResult } from "@/lib/mapping/types";
+import { GradingResult } from "@/lib/grading/types";
+import { calculateGradingSummary } from "@/lib/grading/grader";
 
 export interface UploadedFileMeta {
   file: File;
@@ -50,6 +54,7 @@ interface AssessmentState {
   extractedAnswers: ExtractedAnswer[];
   answerExtractionResult: AnswerExtractionResult | null;
   mappingResult: MappingResult | null;
+  gradingResult: GradingResult | null;
   uploadError: string | null;
   setQuestionPaper: (f: UploadedFileMeta | null) => void;
   setAnswerSheet: (f: UploadedFileMeta | null) => void;
@@ -59,6 +64,8 @@ interface AssessmentState {
   setExtractedAnswers: (a: ExtractedAnswer[]) => void;
   setAnswerExtractionResult: (r: AnswerExtractionResult | null) => void;
   setMappingResult: (m: MappingResult | null) => void;
+  setGradingResult: (g: GradingResult | null) => void;
+  updateTeacherMarks: (questionId: string, marks: number) => void;
   setUploadError: (e: string | null) => void;
   clearAll: () => void;
 }
@@ -74,7 +81,49 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
   const [extractedAnswers, setExtractedAnswers] = useState<ExtractedAnswer[]>([]);
   const [answerExtractionResult, setAnswerExtractionResult] = useState<AnswerExtractionResult | null>(null);
   const [mappingResult, setMappingResult] = useState<MappingResult | null>(null);
+  const [gradingResult, setGradingResult] = useState<GradingResult | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const updateTeacherMarks = (questionId: string, marks: number) => {
+    if (!gradingResult) return;
+
+    const newGrades = gradingResult.grades.map((g) => {
+      if (g.questionId === questionId) {
+        const effectiveMax = g.maxMarks ?? 5;
+        const clamped = Math.max(0, Math.min(marks, effectiveMax));
+        const ratio = effectiveMax > 0 ? clamped / effectiveMax : 0;
+        let evalStatus = g.evaluation;
+        if (clamped === 0 && g.evaluation === "unanswered") {
+          evalStatus = "unanswered";
+        } else if (ratio >= 0.95) {
+          evalStatus = "correct";
+        } else if (ratio >= 0.70) {
+          evalStatus = "mostly_correct";
+        } else if (ratio >= 0.30) {
+          evalStatus = "partially_correct";
+        } else {
+          evalStatus = "incorrect";
+        }
+
+        return {
+          ...g,
+          finalMarks: clamped,
+          teacherModified: true,
+          evaluation: evalStatus,
+          feedback: `Teacher adjusted marks to ${clamped}/${effectiveMax}.`,
+        };
+      }
+      return g;
+    });
+
+    const newSummary = calculateGradingSummary(newGrades, mappingResult?.unmatchedAnswers.length || 0);
+
+    setGradingResult({
+      ...gradingResult,
+      grades: newGrades,
+      summary: newSummary,
+    });
+  };
 
   const clearAll = () => {
     setQuestionPaper(null);
@@ -85,6 +134,7 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
     setExtractedAnswers([]);
     setAnswerExtractionResult(null);
     setMappingResult(null);
+    setGradingResult(null);
     setUploadError(null);
   };
 
@@ -99,6 +149,7 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
         extractedAnswers,
         answerExtractionResult,
         mappingResult,
+        gradingResult,
         uploadError,
         setQuestionPaper,
         setAnswerSheet,
@@ -108,6 +159,8 @@ export function AssessmentProvider({ children }: { children: ReactNode }) {
         setExtractedAnswers,
         setAnswerExtractionResult,
         setMappingResult,
+        setGradingResult,
+        updateTeacherMarks,
         setUploadError,
         clearAll,
       }}

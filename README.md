@@ -1,6 +1,6 @@
 # VedaAI Assessment
 
-AI Assessment Extraction & Answer Mapping application for evaluating handwritten student answer sheets against question papers.
+AI Assessment Extraction, Answer Mapping, and AI-Assisted Grading application for evaluating handwritten student answer sheets against question papers.
 
 <img width="1535" height="835" alt="Screenshot 2026-09-01 221253" src="https://github.com/user-attachments/assets/9d2cd74c-912d-415d-98b4-de075017ef30" />
 
@@ -14,7 +14,7 @@ AI Assessment Extraction & Answer Mapping application for evaluating handwritten
 
 ---
 
-## Current Implementation Status (Phase 7: Exact Answer-Region Highlighting & Review)
+## Current Implementation Status (Phase 8: AI-Assisted Grading & Evaluation)
 
 ### Real Functionality Implemented
 - **Browser File Selection**: Drag-and-drop & file picker support for Question Paper and Student Answer Sheet.
@@ -48,36 +48,60 @@ AI Assessment Extraction & Answer Mapping application for evaluating handwritten
   - **Multi-Page Answer Viewer**: Direct page navigation buttons (`Page 3`, `Page 4`) for multi-page answers.
   - **Unanswered State**: Displays a clean notice for unanswered questions with zero fake bounding boxes.
   - **Unmatched Answers Inspection**: Clickable panel jumping to the answer sheet page with a distinctive purple highlight.
-  - **Keyboard Navigation**: Arrow keys for page switching, `+`/`-` for zoom, and `Ctrl+0` for zoom reset.
-
-### Not Implemented Yet (Future Phases)
-- Automated Evaluation, Marks Calculation & AI Feedback (Phase 8)
+- **AI-Assisted Grading & Deterministic Scoring** (Phase 8):
+  - **Dedicated Grading API**: `POST /api/assessment/grade` evaluates mapped answers against question criteria.
+  - **Server-Side Boundary Validation**: Strict clamping ensures $0 \le \text{marksAwarded} \le \text{maxMarks}$, valid evaluation categories, and clamped confidence scores.
+  - **Deterministic Score & Percentage Calculation**: Overall scores are computed via application code ($\text{sum}(\text{marksAwarded}) / \text{sum}(\text{maxMarks})$) rather than AI estimation.
+  - **Unanswered Question Policy**: Unanswered questions receive 0 marks with explanatory pedagogical guidance without wasting AI tokens.
+  - **Ambiguous Mapping Policy**: Ambiguous mappings receive `needs_review` status to ensure teacher oversight.
+  - **Sub-part Independent Grading**: `11(a)` and `11(b)` are graded separately with distinct feedback and mark values.
+  - **Interactive Teacher Score Overrides**: Teachers can modify awarded marks directly in the review screen (`PATCH /api/assessment/grade`), updating `finalMarks`, setting `teacherModified: true`, and immediately recalculating total scores and percentages.
 
 ---
 
-## Answer Review & Highlighting Architecture
+## AI Grading Architecture
 
-### Coordinate Scaling & Viewport Synchronization
+### Pipeline & Policy
 ```text
-Original Normalized Image Dimensions: 1240 × 1754 px
-Displayed Canvas Dimensions:         558 × 789 px
-Base Scaling Factor:                 558 / 1240 = 0.45
-
-Display Coordinates:
-  displayX = originalX * 0.45
-  displayY = originalY * 0.45
-  displayWidth = originalWidth * 0.45
-  displayHeight = originalHeight * 0.45
+Mapped Questions + Student Transcriptions
+                   ↓
+1. Unanswered Questions → Deterministic 0 Marks (No AI call)
+                   ↓
+2. Ambiguous Questions → Flagged as "needs_review" (No AI call)
+                   ↓
+3. Answered Questions → AI Batch Evaluation (Rubric & Content Criteria)
+                   ↓
+4. Server-Side Validation & Boundary Clamping (0 <= marks <= maxMarks)
+                   ↓
+5. Teacher Overrides Applied (Preserving original aiMarks vs finalMarks)
+                   ↓
+6. Deterministic Overall Score & Percentage Calculation
 ```
 
-The canvas and overlay reside inside the same relative container. When zooming or resizing, CSS `transform: scale(...)` applies uniformly to both image and highlights, eliminating coordinate drift.
+### Grading Data Contract
+```json
+{
+  "questionId": "q-1-1",
+  "questionNumber": "1",
+  "maxMarks": 5,
+  "aiMarks": 5,
+  "finalMarks": 5,
+  "teacherModified": false,
+  "evaluation": "correct",
+  "feedback": "Correctly identified that arteries transport oxygenated blood away from the heart.",
+  "strengths": ["Accurate terminology", "Clear explanation"],
+  "improvements": [],
+  "confidence": 0.95,
+  "gradingStatus": "graded"
+}
+```
 
 ---
 
-## File Specifications & Limits
+## Security & Privacy
 
-- **Supported Formats**: PDF (`application/pdf`), PNG (`image/png`), JPEG (`image/jpeg`), WEBP (`image/webp`).
-- **File Size Limit**: **20 MB** per file (client-side and server-side).
+- AI API keys (`GEMINI_API_KEY`) remain strictly on the server and are never exposed to browser clients or committed to version control.
+- In-memory temporary assessment storage with automatic LRU pruning preserves document privacy.
 
 ---
 

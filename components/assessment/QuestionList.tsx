@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Question } from "@/lib/types";
 import { MappedQuestion, UnmatchedAnswer } from "@/lib/mapping/types";
-import { mockScores } from "@/lib/mock-data";
+import { QuestionGrade, GradingResult } from "@/lib/grading/types";
 import { cn } from "@/lib/utils";
 
 const ChevronDownIcon = ({ open }: { open: boolean }) => (
@@ -20,17 +20,51 @@ const ChevronDownIcon = ({ open }: { open: boolean }) => (
 
 interface StatusBadgeProps {
   status: "answered" | "unanswered" | "ambiguous";
-  method?: string;
-  confidence?: number;
+  grade?: QuestionGrade;
 }
 
-function StatusBadge({ status, method, confidence }: StatusBadgeProps) {
+function StatusBadge({ status, grade }: StatusBadgeProps) {
+  if (grade) {
+    const max = grade.maxMarks ?? 5;
+    const ratio = max > 0 ? grade.finalMarks / max : 0;
+
+    if (grade.gradingStatus === "needs_review") {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+          <span>Needs Review</span>
+        </span>
+      );
+    }
+
+    if (grade.evaluation === "unanswered") {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+          <span>0/{max}</span>
+        </span>
+      );
+    }
+
+    const badgeColor =
+      ratio >= 0.75
+        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+        : ratio >= 0.40
+        ? "bg-amber-50 text-amber-700 border-amber-200"
+        : "bg-red-50 text-red-700 border-red-200";
+
+    return (
+      <span className={cn("inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border", badgeColor)}>
+        <span>{grade.finalMarks}/{max}</span>
+        {grade.teacherModified && <span className="text-[9px] font-normal opacity-80">(edited)</span>}
+      </span>
+    );
+  }
+
   if (status === "answered") {
     return (
       <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
         <span>Answered</span>
-        {method === "semantic" && <span className="text-[9px] opacity-75">(Semantic)</span>}
       </span>
     );
   }
@@ -61,22 +95,38 @@ interface DisplayQuestionItem {
   maxMarks?: number;
   status: "answered" | "unanswered" | "ambiguous";
   mappedData?: MappedQuestion;
+  gradeData?: QuestionGrade;
 }
 
 interface QuestionItemProps {
   question: DisplayQuestionItem;
   isSelected: boolean;
   onSelect: (id: string) => void;
+  onUpdateMarks?: (questionId: string, marks: number) => void;
 }
 
-function QuestionItem({ question, isSelected, onSelect }: QuestionItemProps) {
+function QuestionItem({ question, isSelected, onSelect, onUpdateMarks }: QuestionItemProps) {
   const [expanded, setExpanded] = useState(isSelected);
-  const { mappedData, status } = question;
+  const { mappedData, status, gradeData } = question;
+  const [isEditingMarks, setIsEditingMarks] = useState(false);
+  const [tempMarks, setTempMarks] = useState<string>(
+    gradeData ? String(gradeData.finalMarks) : "0"
+  );
+
+  const handleSaveMarks = () => {
+    const parsed = parseFloat(tempMarks);
+    if (!isNaN(parsed) && onUpdateMarks) {
+      onUpdateMarks(question.id, parsed);
+    }
+    setIsEditingMarks(false);
+  };
+
+  const effectiveMax = gradeData?.maxMarks ?? question.maxMarks ?? 5;
 
   return (
     <div
       className={cn(
-        "rounded-xl border transition-all duration-150 overflow-hidden mb-2",
+        "rounded-xl border transition-all duration-150 overflow-hidden mb-2.5",
         isSelected
           ? "border-[#E85D27] shadow-sm bg-orange-50/20"
           : "border-gray-200 hover:border-gray-300 bg-white"
@@ -115,8 +165,7 @@ function QuestionItem({ question, isSelected, onSelect }: QuestionItemProps) {
         <div className="flex items-center gap-2 flex-shrink-0">
           <StatusBadge
             status={status}
-            method={mappedData?.matchMethod}
-            confidence={mappedData?.confidence}
+            grade={gradeData}
           />
           <span className="text-gray-400">
             <ChevronDownIcon open={expanded && isSelected} />
@@ -124,13 +173,14 @@ function QuestionItem({ question, isSelected, onSelect }: QuestionItemProps) {
         </div>
       </button>
 
-      {/* Expanded Transcribed Answer Preview */}
+      {/* Expanded Review & Grading Card */}
       {isSelected && expanded && (
-        <div className="px-4 pb-4 pt-1 border-t border-gray-100 bg-gray-50/50 text-xs">
+        <div className="px-4 pb-4 pt-2 border-t border-gray-100 bg-gray-50/60 text-xs space-y-3">
+          {/* Matched Answer Prose */}
           {mappedData && mappedData.answerText ? (
             <div>
               <div className="flex items-center justify-between font-semibold text-gray-700 mb-1">
-                <span>Matched Student Answer:</span>
+                <span>Transcribed Student Answer:</span>
                 <span className="text-[10px] text-gray-500 font-mono">
                   {mappedData.regions.length} region(s) on p.{mappedData.regions.map((r) => r.page).join(", ")}
                 </span>
@@ -138,21 +188,108 @@ function QuestionItem({ question, isSelected, onSelect }: QuestionItemProps) {
               <p className="text-gray-700 bg-white p-2.5 rounded-md border border-gray-200 leading-relaxed font-sans whitespace-pre-wrap">
                 {mappedData.answerText}
               </p>
-              <div className="flex items-center justify-between text-[11px] text-gray-500 mt-2">
-                <span>Method: <strong>{mappedData.matchMethod}</strong></span>
-                <span>Confidence: <strong>{Math.round(mappedData.confidence * 100)}%</strong></span>
-              </div>
             </div>
           ) : status === "unanswered" ? (
-            <div className="text-gray-500 italic py-1">
+            <div className="text-gray-500 italic py-1 bg-white p-2.5 rounded-md border border-gray-200">
               No matching student answer detected on the uploaded answer sheet.
             </div>
-          ) : (
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs font-semibold text-gray-700 mb-1">AI Feedback</p>
-              <p className="text-xs text-gray-600 leading-relaxed">
-                {mockScores[question.id]?.feedback || "Answer mapped successfully."}
-              </p>
+          ) : null}
+
+          {/* AI Grading & Feedback Card */}
+          {gradeData && (
+            <div className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm space-y-2.5">
+              {/* Score bar with Teacher Override */}
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-gray-800">Assigned Marks:</span>
+                  {isEditingMarks ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        max={effectiveMax}
+                        step="0.5"
+                        value={tempMarks}
+                        onChange={(e) => setTempMarks(e.target.value)}
+                        className="w-16 px-1.5 py-0.5 border border-orange-400 rounded text-xs font-bold"
+                        autoFocus
+                      />
+                      <span className="text-gray-500">/ {effectiveMax}</span>
+                      <button
+                        onClick={handleSaveMarks}
+                        className="px-2 py-0.5 bg-[#E85D27] text-white rounded text-[10px] font-bold"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setIsEditingMarks(false)}
+                        className="px-1.5 py-0.5 text-gray-400 text-[10px]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setTempMarks(String(gradeData.finalMarks));
+                        setIsEditingMarks(true);
+                      }}
+                      className="group flex items-center gap-1 px-2 py-0.5 rounded hover:bg-orange-50 transition-colors"
+                      title="Click to manually adjust marks"
+                    >
+                      <span className="font-bold text-sm text-[#E85D27]">
+                        {gradeData.finalMarks} / {effectiveMax}
+                      </span>
+                      <span className="text-[10px] text-gray-400 group-hover:text-[#E85D27] underline ml-1">
+                        Edit
+                      </span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                  <span className="capitalize font-medium text-gray-700">
+                    {gradeData.evaluation.replace("_", " ")}
+                  </span>
+                  <span>•</span>
+                  <span>{Math.round(gradeData.confidence * 100)}% conf</span>
+                </div>
+              </div>
+
+              {/* Pedagogical Feedback */}
+              <div>
+                <p className="font-semibold text-gray-700 mb-0.5">AI Feedback:</p>
+                <p className="text-gray-600 leading-relaxed">
+                  {gradeData.feedback}
+                </p>
+              </div>
+
+              {/* Strengths & Improvements */}
+              {(gradeData.strengths.length > 0 || gradeData.improvements.length > 0) && (
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100 text-[11px]">
+                  {gradeData.strengths.length > 0 && (
+                    <div className="bg-emerald-50/70 p-2 rounded border border-emerald-100">
+                      <p className="font-bold text-emerald-800 mb-1">Strengths:</p>
+                      <ul className="list-disc list-inside space-y-0.5 text-emerald-900">
+                        {gradeData.strengths.map((s, idx) => (
+                          <li key={idx} className="leading-snug">{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {gradeData.improvements.length > 0 && (
+                    <div className="bg-amber-50/70 p-2 rounded border border-amber-100">
+                      <p className="font-bold text-amber-800 mb-1">Improvements:</p>
+                      <ul className="list-disc list-inside space-y-0.5 text-amber-900">
+                        {gradeData.improvements.map((i, idx) => (
+                          <li key={idx} className="leading-snug">{i}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -165,19 +302,28 @@ interface QuestionListProps {
   questions: Question[];
   mappedQuestions?: MappedQuestion[];
   unmatchedAnswers?: UnmatchedAnswer[];
+  gradingResult?: GradingResult | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onSelectUnmatched?: (answerId: string) => void;
+  onUpdateTeacherMarks?: (questionId: string, marks: number) => void;
 }
 
 export default function QuestionList({
   questions,
   mappedQuestions,
   unmatchedAnswers = [],
+  gradingResult,
   selectedId,
   onSelect,
   onSelectUnmatched,
+  onUpdateTeacherMarks,
 }: QuestionListProps) {
+  const gradeMap = new Map<string, QuestionGrade>();
+  if (gradingResult?.grades) {
+    gradingResult.grades.forEach((g) => gradeMap.set(g.questionId, g));
+  }
+
   const displayedList: DisplayQuestionItem[] = mappedQuestions && mappedQuestions.length > 0
     ? mappedQuestions.map((mq) => ({
         id: mq.questionId,
@@ -186,9 +332,10 @@ export default function QuestionList({
         order: mq.order,
         parentNumber: mq.parentNumber ?? undefined,
         partLabel: mq.partLabel ?? undefined,
-        maxMarks: mq.maxMarks ?? 2,
+        maxMarks: mq.maxMarks ?? 5,
         status: mq.mappingStatus,
         mappedData: mq,
+        gradeData: gradeMap.get(mq.questionId),
       }))
     : questions.map((q, idx) => ({
         id: q.id,
@@ -197,9 +344,10 @@ export default function QuestionList({
         order: q.order ?? (idx + 1),
         parentNumber: q.parentNumber ?? undefined,
         partLabel: q.partLabel ?? undefined,
-        maxMarks: q.maxMarks ?? 2,
+        maxMarks: q.maxMarks ?? 5,
         status: (q.status as "answered" | "unanswered" | "ambiguous") || "answered",
         mappedData: undefined,
+        gradeData: gradeMap.get(q.id),
       }));
 
   const answeredCount = displayedList.filter((q) => q.status === "answered").length;
@@ -236,6 +384,7 @@ export default function QuestionList({
             question={q}
             isSelected={selectedId === q.id}
             onSelect={onSelect}
+            onUpdateMarks={onUpdateTeacherMarks}
           />
         ))}
 
